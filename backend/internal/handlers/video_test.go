@@ -95,7 +95,9 @@ func TestConfigureVideoGeneratorFromEnvMockAndWan(t *testing.T) {
 	}
 
 	t.Setenv("VIDEO_PROVIDER", "wan")
-	if _, err := ConfigureVideoGeneratorFromEnv(); err == nil {
-		t.Fatal("ConfigureVideoGeneratorFromEnv() wan error = nil, want not implemented error")
+	t.Setenv("VIDEO_BASE_URL", "https://example.com/api/v1")
+	t.Setenv("VIDEO_API_KEY", "test-key")
+	if _, err := ConfigureVideoGeneratorFromEnv(); err != nil {
+		t.Fatalf("ConfigureVideoGeneratorFromEnv() wan error = %v", err)
 	}
 }

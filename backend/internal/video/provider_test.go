@@ -1,6 +1,7 @@
 package video
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -48,15 +49,29 @@ func TestNewGeneratorFromConfigMock(t *testing.T) {
 	}
 }
 
-func TestNewGeneratorFromConfigWanNotImplemented(t *testing.T) {
-	_, err := NewGeneratorFromConfig(
-		ProviderConfig{Provider: "wan", Model: "wan2.6-t2v"},
+func TestNewGeneratorFromConfigWan(t *testing.T) {
+	t.Setenv("VIDEO_API_KEY", "test-key")
+	generator, err := NewGeneratorFromConfig(
+		ProviderConfig{Provider: "wan", Model: "wan2.6-t2v", BaseURL: "https://example.com/api/v1", TimeoutSeconds: 10},
 		NewMemoryVideoTaskStore(),
 	)
-	if err == nil {
-		t.Fatal("NewGeneratorFromConfig() error = nil, want not implemented error")
+	if err != nil {
+		t.Fatalf("NewGeneratorFromConfig() error = %v", err)
 	}
-	if !strings.Contains(err.Error(), "wan provider not implemented yet") {
-		t.Fatalf("error = %q", err)
+	if _, ok := generator.(*WanVideoGenerator); !ok {
+		t.Fatalf("generator type = %T, want *WanVideoGenerator", generator)
+	}
+	wanGenerator := generator.(*WanVideoGenerator)
+	transport, ok := wanGenerator.httpClient.Transport.(*http.Transport)
+	if !ok || transport.Proxy == nil {
+		t.Fatalf("Wan transport = %T, want proxy-aware *http.Transport", wanGenerator.httpClient.Transport)
+	}
+}
+
+func TestNewGeneratorFromConfigWanRequiresConfiguration(t *testing.T) {
+	t.Setenv("VIDEO_API_KEY", "")
+	_, err := NewGeneratorFromConfig(ProviderConfig{Provider: "wan"}, NewMemoryVideoTaskStore())
+	if err == nil || !strings.Contains(err.Error(), "VIDEO_BASE_URL") {
+		t.Fatalf("error = %v, want VIDEO_BASE_URL requirement", err)
 	}
 }

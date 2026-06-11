@@ -3,9 +3,11 @@ package video
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -62,7 +64,24 @@ func NewGeneratorFromConfig(config ProviderConfig, store VideoTaskStore) (VideoG
 	case "mock":
 		return NewMockVideoGeneratorWithStore(config, store), nil
 	case "wan":
-		return nil, fmt.Errorf("wan provider not implemented yet")
+		apiKey := strings.TrimSpace(os.Getenv("VIDEO_API_KEY"))
+		if strings.TrimSpace(config.BaseURL) == "" {
+			return nil, fmt.Errorf("VIDEO_PROVIDER=wan requires VIDEO_BASE_URL")
+		}
+		if apiKey == "" {
+			return nil, fmt.Errorf("VIDEO_PROVIDER=wan requires VIDEO_API_KEY")
+		}
+		timeoutSeconds := config.TimeoutSeconds
+		if timeoutSeconds <= 0 {
+			timeoutSeconds = defaultVideoTimeoutSeconds
+		}
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.Proxy = http.ProxyFromEnvironment
+		client := &http.Client{
+			Transport: transport,
+			Timeout:   time.Duration(timeoutSeconds) * time.Second,
+		}
+		return NewWanVideoGenerator(config, store, apiKey, client), nil
 	default:
 		return nil, fmt.Errorf("unknown VIDEO_PROVIDER %q", config.Provider)
 	}
