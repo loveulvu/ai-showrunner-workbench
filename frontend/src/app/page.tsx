@@ -6,9 +6,10 @@ import { GeneratePanel } from "@/components/GeneratePanel";
 import { NovelInput } from "@/components/NovelInput";
 import { OutputPanel } from "@/components/OutputPanel";
 import { ResultSections } from "@/components/ResultSections";
+import { ShowrunnerOutput } from "@/components/ShowrunnerOutput";
 import { WorkflowStepper } from "@/components/WorkflowStepper";
-import { generateScreenplay } from "@/lib/api";
-import type { GenerateResponse } from "@/lib/api";
+import { generateScreenplay, generateShowrunner } from "@/lib/api";
+import type { GenerateResponse, ShowrunnerResult } from "@/lib/api";
 
 const sampleText = `第一章 雨夜钥匙
 林澈在雨夜回到老街。巷口的邮箱早已停用，却在这天晚上吐出一封没有署名的信。
@@ -25,6 +26,8 @@ Chapter 3 舞台对峙
 export default function Home() {
   const [novelText, setNovelText] = useState("");
   const [result, setResult] = useState<GenerateResponse | null>(null);
+  const [showrunnerResult, setShowrunnerResult] = useState<ShowrunnerResult | null>(null);
+  const [showrunnerError, setShowrunnerError] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
@@ -48,9 +51,17 @@ export default function Home() {
     setLoadingStep(1);
     setLoading(true);
     setError("");
+    setShowrunnerError("");
+    setShowrunnerResult(null);
 
     try {
-      setResult(await generateScreenplay(novelText));
+      const screenplayResult = await generateScreenplay(novelText);
+      setResult(screenplayResult);
+      try {
+        setShowrunnerResult(await generateShowrunner(screenplayResult));
+      } catch (showrunnerErr) {
+        setShowrunnerError(showrunnerErr instanceof Error ? showrunnerErr.message : "Showrunner generation failed");
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
       setError(
@@ -132,6 +143,8 @@ export default function Home() {
         </div>
 
         {result && !loading ? <ResultSections result={result} detailsOnly /> : null}
+        {showrunnerError && !loading ? <Alert className="error-card showrunner-error" type="warning" showIcon message={showrunnerError} /> : null}
+        {showrunnerResult && !loading ? <ShowrunnerOutput result={showrunnerResult} /> : null}
       </main>
     </ConfigProvider>
   );

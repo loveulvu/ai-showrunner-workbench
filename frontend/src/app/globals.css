@@ -436,6 +436,21 @@ h4 { margin-bottom: 8px; font-size: 13px; }
 .story-header { border: 1px solid var(--line); border-radius: 9px; padding: 16px; background: var(--soft); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.025); transition: border-color 180ms ease-out, box-shadow 180ms ease-out, transform 180ms ease-out; }
 .story-header:hover { border-color: #c6c6c2; box-shadow: 0 7px 16px rgba(0, 0, 0, 0.05); transform: translateY(-2px); }
 .story-header h3 { margin: 5px 0; font-size: 18px; }
+.showrunner-tags { justify-content: flex-start; margin: 14px 0; }
+.showrunner-json {
+  overflow: auto;
+  max-height: 680px;
+  margin: 0;
+  border: 1px solid #343438;
+  border-radius: 9px;
+  padding: 18px;
+  background: #202023;
+  color: #e8e8e8;
+  font: 11px/1.65 var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.showrunner-error { margin-top: 28px; }
 
 .issue-list { display: flex; flex-direction: column; gap: 7px; }
 .issue-item { border: 1px solid #e6c3be; border-radius: 8px; padding: 11px; background: #fff9f8; }

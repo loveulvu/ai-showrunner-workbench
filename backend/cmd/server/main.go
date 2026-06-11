@@ -17,6 +17,7 @@ func main() {
 	r.Use(withCORS())
 	r.GET("/api/health", handlers.Health)
 	r.POST("/api/generate", handlers.Generate)
+	r.POST("/api/showrunner/generate", handlers.GenerateShowrunner)
 	addr := ":8080"
 
 	if port := os.Getenv("PORT"); port != "" {

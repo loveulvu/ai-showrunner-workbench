@@ -17,6 +17,7 @@ import (
 	"ai-showrunner-workbench/internal/fidelity"
 	"ai-showrunner-workbench/internal/novel"
 	"ai-showrunner-workbench/internal/screenplay"
+	"ai-showrunner-workbench/internal/showrunner"
 	"ai-showrunner-workbench/internal/story"
 )
 
@@ -93,6 +94,14 @@ func (c *RealClient) GenerateScreenplay(ctx context.Context, bible story.StoryBi
 	}
 
 	return repaired, nil
+}
+
+func (c *RealClient) GenerateShowrunner(ctx context.Context, input showrunner.GenerateInput) (showrunner.ShowrunnerResult, error) {
+	raw, err := c.callChatContent(ctx, "generate showrunner assets", showrunner.BuildPrompt(input))
+	if err != nil {
+		return showrunner.ShowrunnerResult{}, err
+	}
+	return showrunner.ParseJSON(raw)
 }
 
 func (c *RealClient) CheckFidelity(ctx context.Context, current screenplay.Screenplay, bible story.StoryBible, analyses []analysis.ChapterAnalysis) (fidelity.FidelityResult, error) {

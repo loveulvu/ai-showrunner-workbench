@@ -8,6 +8,7 @@ import (
 	"ai-showrunner-workbench/internal/fidelity"
 	"ai-showrunner-workbench/internal/novel"
 	"ai-showrunner-workbench/internal/screenplay"
+	"ai-showrunner-workbench/internal/showrunner"
 	"ai-showrunner-workbench/internal/story"
 )
 
@@ -201,6 +202,11 @@ func (m MockClient) GenerateScreenplay(ctx context.Context, bible story.StoryBib
 		Characters:     characters,
 		Scenes:         scenes,
 	}, nil
+}
+
+func (m MockClient) GenerateShowrunner(ctx context.Context, input showrunner.GenerateInput) (showrunner.ShowrunnerResult, error) {
+	_ = ctx
+	return showrunner.MockResult(input), nil
 }
 
 func (m MockClient) CheckFidelity(ctx context.Context, current screenplay.Screenplay, bible story.StoryBible, analyses []analysis.ChapterAnalysis) (fidelity.FidelityResult, error) {

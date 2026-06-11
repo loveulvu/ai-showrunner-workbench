@@ -125,6 +125,70 @@ export type GenerateResponse = {
   meta: GenerateMeta;
 };
 
+export type CharacterProfile = {
+  id: string;
+  name: string;
+  role: string;
+  personality: string[];
+  appearance: string;
+  costume: string;
+  voice_style: string;
+  key_motivation: string;
+  consistency_notes: string[];
+};
+
+export type SceneProfile = {
+  id: string;
+  name: string;
+  location: string;
+  time_of_day: string;
+  atmosphere: string;
+  visual_style: string;
+  key_props: string[];
+  consistency_notes: string[];
+};
+
+export type ChapterBreakdown = {
+  chapter_number: number;
+  chapter_title: string;
+  summary: string;
+  main_characters: string[];
+  main_scenes: string[];
+  emotional_arc: string;
+  key_events: string[];
+};
+
+export type Shot = {
+  id: string;
+  chapter_number: number;
+  scene_id: string;
+  characters: string[];
+  dialogue: string;
+  action: string;
+  camera: string;
+  background: string;
+  duration_hint: string;
+  image_prompt: string;
+  video_prompt: string;
+  audio_prompt: string;
+};
+
+export type AssetPromptSet = {
+  character_prompts: Record<string, string>;
+  background_prompts: Record<string, string>;
+  shot_prompts: Record<string, string>;
+  voice_prompts: Record<string, string>;
+};
+
+export type ShowrunnerResult = {
+  characters: CharacterProfile[];
+  scenes: SceneProfile[];
+  chapters: ChapterBreakdown[];
+  shots: Shot[];
+  asset_prompts: AssetPromptSet;
+  warnings: string[];
+};
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 export async function generateScreenplay(novelText: string): Promise<GenerateResponse> {
@@ -150,4 +214,37 @@ export async function generateScreenplay(novelText: string): Promise<GenerateRes
   }
 
   return data as GenerateResponse;
+}
+
+export async function generateShowrunner(
+  result: GenerateResponse,
+  style = "",
+  language = "zh-CN"
+): Promise<ShowrunnerResult> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/api/showrunner/generate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        screenplay: result.screenplay_json,
+        story_bible: result.story_bible,
+        chapters: result.chapter_analyses,
+        style,
+        language
+      })
+    });
+  } catch {
+    throw new Error("Showrunner request failed");
+  }
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.error ?? "Showrunner generation failed");
+  }
+
+  return data as ShowrunnerResult;
 }
