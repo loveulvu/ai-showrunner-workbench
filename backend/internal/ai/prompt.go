@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"novel-to-screenplay-ai/internal/analysis"
-	"novel-to-screenplay-ai/internal/fidelity"
-	"novel-to-screenplay-ai/internal/novel"
-	"novel-to-screenplay-ai/internal/screenplay"
-	"novel-to-screenplay-ai/internal/story"
+	"ai-showrunner-workbench/internal/analysis"
+	"ai-showrunner-workbench/internal/fidelity"
+	"ai-showrunner-workbench/internal/novel"
+	"ai-showrunner-workbench/internal/screenplay"
+	"ai-showrunner-workbench/internal/story"
 )
 
 const systemPrompt = "你是小说改编剧本的结构化分析助手。你必须只输出合法 JSON，不输出 markdown、解释、注释或 YAML。"

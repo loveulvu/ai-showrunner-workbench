@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"novel-to-screenplay-ai/internal/analysis"
-	"novel-to-screenplay-ai/internal/screenplay"
-	"novel-to-screenplay-ai/internal/story"
+	"ai-showrunner-workbench/internal/analysis"
+	"ai-showrunner-workbench/internal/screenplay"
+	"ai-showrunner-workbench/internal/story"
 )
 
 type AIClient interface {

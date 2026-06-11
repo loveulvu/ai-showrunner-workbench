@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"novel-to-screenplay-ai/internal/analysis"
-	"novel-to-screenplay-ai/internal/fidelity"
-	"novel-to-screenplay-ai/internal/novel"
-	"novel-to-screenplay-ai/internal/screenplay"
-	"novel-to-screenplay-ai/internal/story"
+	"ai-showrunner-workbench/internal/analysis"
+	"ai-showrunner-workbench/internal/fidelity"
+	"ai-showrunner-workbench/internal/novel"
+	"ai-showrunner-workbench/internal/screenplay"
+	"ai-showrunner-workbench/internal/story"
 )
 
 type MockClient struct{}

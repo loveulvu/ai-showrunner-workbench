@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"ai-showrunner-workbench/internal/ai"
+)
 
 func TestSafeURLForLog(t *testing.T) {
 	tests := []struct {
@@ -32,8 +36,8 @@ func TestSafeURLForLog(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := safeURLForLog(tt.value); got != tt.want {
-				t.Fatalf("safeURLForLog(%q) = %q, want %q", tt.value, got, tt.want)
+			if got := ai.SafeURLForLog(tt.value); got != tt.want {
+				t.Fatalf("SafeURLForLog(%q) = %q, want %q", tt.value, got, tt.want)
 			}
 		})
 	}

@@ -6,7 +6,7 @@
 
 **讲解：**
 
-> 这是 Novel to Screenplay AI，一个基于多阶段 AI Workflow 的小说转结构化 YAML 剧本工具，对应七牛云 × XEngineer 暑期实训营第三批次议题三。
+> 这是 AI Showrunner Workbench，一个基于多阶段 AI Workflow 的小说转结构化 YAML 剧本工具，对应七牛云 × XEngineer 暑期实训营第三批次议题三。
 
 ## 0:25～0:45 说明题目与设计思路
 

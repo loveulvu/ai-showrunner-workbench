@@ -1,4 +1,4 @@
-module novel-to-screenplay-ai
+module ai-showrunner-workbench
 
 go 1.25.0
 

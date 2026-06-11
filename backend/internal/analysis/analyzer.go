@@ -3,7 +3,7 @@ package analysis
 import (
 	"context"
 
-	"novel-to-screenplay-ai/internal/novel"
+	"ai-showrunner-workbench/internal/novel"
 )
 
 type ChapterAIClient interface {

@@ -3,8 +3,8 @@ package screenplay
 import (
 	"context"
 
-	"novel-to-screenplay-ai/internal/analysis"
-	"novel-to-screenplay-ai/internal/story"
+	"ai-showrunner-workbench/internal/analysis"
+	"ai-showrunner-workbench/internal/story"
 )
 
 type ScreenplayAIClient interface {

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Novel to Screenplay AI",
+  title: "AI Showrunner Workbench",
   description: "多章节小说转 Story Bible 与 YAML 剧本工作台"
 };
 

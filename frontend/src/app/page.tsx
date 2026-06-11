@@ -81,7 +81,7 @@ export default function Home() {
         <header className="hero-section">
           <div className="hero-copy">
             <span className="hero-eyebrow">AI STORY ADAPTATION WORKBENCH</span>
-            <h1>Novel to Screenplay AI</h1>
+            <h1>AI Showrunner Workbench</h1>
             <p className="hero-subtitle">从多章节小说到可校验 YAML 剧本的结构化 AI 工作流</p>
           </div>
           <div className="status-tags" aria-label="系统能力">

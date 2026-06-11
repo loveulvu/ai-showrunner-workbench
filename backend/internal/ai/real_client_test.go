@@ -50,6 +50,23 @@ func TestRealClientCallChatContentSendsOpenAICompatibleRequest(t *testing.T) {
 	}
 }
 
+func TestNewRealClientUsesProxyFromEnvironment(t *testing.T) {
+	client := NewRealClient(Config{
+		APIKey:         "test-key",
+		BaseURL:        defaultQwenBaseURL,
+		Model:          defaultQwenModel,
+		TimeoutSeconds: 2,
+	})
+
+	transport, ok := client.httpClient.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("Transport type = %T, want *http.Transport", client.httpClient.Transport)
+	}
+	if transport.Proxy == nil {
+		t.Fatal("Transport.Proxy = nil, want http.ProxyFromEnvironment")
+	}
+}
+
 func TestRealClientCallChatContentErrors(t *testing.T) {
 	tests := []struct {
 		name       string

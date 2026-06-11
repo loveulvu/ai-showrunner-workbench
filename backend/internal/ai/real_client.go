@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"novel-to-screenplay-ai/internal/analysis"
-	"novel-to-screenplay-ai/internal/fidelity"
-	"novel-to-screenplay-ai/internal/novel"
-	"novel-to-screenplay-ai/internal/screenplay"
-	"novel-to-screenplay-ai/internal/story"
+	"ai-showrunner-workbench/internal/analysis"
+	"ai-showrunner-workbench/internal/fidelity"
+	"ai-showrunner-workbench/internal/novel"
+	"ai-showrunner-workbench/internal/screenplay"
+	"ai-showrunner-workbench/internal/story"
 )
 
 type RealClient struct {
@@ -34,13 +34,16 @@ func NewRealClient(cfg Config) *RealClient {
 		timeoutSeconds = defaultAITimeoutSeconds
 	}
 	timeout := time.Duration(timeoutSeconds) * time.Second
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = http.ProxyFromEnvironment
 
 	return &RealClient{
 		apiKey:   cfg.APIKey,
 		model:    cfg.Model,
 		endpoint: chatCompletionsEndpoint(cfg.BaseURL),
 		httpClient: &http.Client{
-			Timeout: timeout,
+			Timeout:   timeout,
+			Transport: transport,
 		},
 		timeout: timeout,
 	}

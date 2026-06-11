@@ -3,7 +3,7 @@ package story
 import (
 	"context"
 
-	"novel-to-screenplay-ai/internal/analysis"
+	"ai-showrunner-workbench/internal/analysis"
 )
 
 type StoryAIClient interface {
