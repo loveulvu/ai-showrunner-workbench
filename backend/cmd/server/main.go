@@ -18,6 +18,8 @@ func main() {
 	r.GET("/api/health", handlers.Health)
 	r.POST("/api/generate", handlers.Generate)
 	r.POST("/api/showrunner/generate", handlers.GenerateShowrunner)
+	r.POST("/api/video/tasks", handlers.CreateVideoTask)
+	r.GET("/api/video/tasks/:task_id", handlers.GetVideoTask)
 	addr := ":8080"
 
 	if port := os.Getenv("PORT"); port != "" {

@@ -451,6 +451,20 @@ h4 { margin-bottom: 8px; font-size: 13px; }
   word-break: break-word;
 }
 .showrunner-error { margin-top: 28px; }
+.video-task-list { display: flex; flex-direction: column; gap: 9px; margin: 18px 0; }
+.video-task-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 12px;
+  background: #fafaf9;
+}
+.video-task-row > div { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.video-task-row small, .video-task-row code { overflow-wrap: anywhere; color: var(--muted); font: 9px/1.5 var(--font-mono); }
+.video-task-error { margin-bottom: 14px; }
 
 .issue-list { display: flex; flex-direction: column; gap: 7px; }
 .issue-item { border: 1px solid #e6c3be; border-radius: 8px; padding: 11px; background: #fff9f8; }
@@ -513,6 +527,7 @@ button:focus-visible, textarea:focus-visible, summary:focus-visible, .ant-segmen
   .code-toolbar { grid-template-columns: 1fr 1fr; }
   .code-toolbar > span { display: none; }
   .chapter-card summary { grid-template-columns: auto 1fr; }
+  .video-task-row { grid-template-columns: 1fr; }
   .chapter-card summary small { display: none; }
   .novel-textarea, .ant-input.novel-textarea { min-height: 390px !important; }
 }

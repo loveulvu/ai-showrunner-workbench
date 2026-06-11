@@ -189,6 +189,27 @@ export type ShowrunnerResult = {
   warnings: string[];
 };
 
+export type VideoTaskStatus = "pending" | "running" | "succeeded" | "failed";
+
+export type VideoPrompt = {
+  shot_id: string;
+  model: string;
+  prompt: string;
+  negative_prompt: string;
+  duration_seconds: number;
+  aspect_ratio: string;
+  subtitle: string;
+  expected_clip_name: string;
+};
+
+export type VideoResult = {
+  task_id: string;
+  shot_id: string;
+  status: VideoTaskStatus;
+  video_url: string;
+  error_message: string;
+};
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 export async function generateScreenplay(novelText: string): Promise<GenerateResponse> {
@@ -247,4 +268,28 @@ export async function generateShowrunner(
   }
 
   return data as ShowrunnerResult;
+}
+
+export async function createVideoTask(prompt: VideoPrompt): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/api/video/tasks`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(prompt)
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.error ?? "Create mock video task failed");
+  }
+  return data.task_id as string;
+}
+
+export async function getVideoTask(taskID: string): Promise<VideoResult> {
+  const response = await fetch(`${API_BASE_URL}/api/video/tasks/${encodeURIComponent(taskID)}`);
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.error ?? "Get mock video task failed");
+  }
+  return data as VideoResult;
 }
