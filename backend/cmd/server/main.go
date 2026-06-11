@@ -3,6 +3,7 @@ package main
 import (
 	"ai-showrunner-workbench/internal/ai"
 	"ai-showrunner-workbench/internal/handlers"
+	"ai-showrunner-workbench/internal/video"
 	"log"
 	"net/http"
 	"os"
@@ -27,6 +28,11 @@ func main() {
 	}
 
 	ai.LogRuntimeConfiguration(log.Default())
+	videoConfig, err := handlers.ConfigureVideoGeneratorFromEnv()
+	if err != nil {
+		log.Fatal(err)
+	}
+	video.LogProviderConfig(log.Default(), videoConfig)
 	log.Printf("ai-showrunner-workbench backend listening on %s", addr)
 	if err := r.Run(addr); err != nil {
 		log.Fatal(err)

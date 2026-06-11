@@ -5,22 +5,30 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 )
 
 type MockVideoGenerator struct {
-	mu      sync.RWMutex
-	tasks   map[string]VideoTask
-	prompts map[string]VideoPrompt
-	nextID  atomic.Uint64
+	config ProviderConfig
+	store  VideoTaskStore
+	nextID atomic.Uint64
 }
 
 func NewMockVideoGenerator() *MockVideoGenerator {
+	config := ProviderConfig{
+		Provider:            defaultVideoProvider,
+		Model:               defaultVideoModel,
+		TimeoutSeconds:      defaultVideoTimeoutSeconds,
+		PollIntervalSeconds: defaultVideoPollIntervalSeconds,
+	}
+	return NewMockVideoGeneratorWithStore(config, NewMemoryVideoTaskStore())
+}
+
+func NewMockVideoGeneratorWithStore(config ProviderConfig, store VideoTaskStore) *MockVideoGenerator {
 	return &MockVideoGenerator{
-		tasks:   map[string]VideoTask{},
-		prompts: map[string]VideoPrompt{},
+		config: config,
+		store:  store,
 	}
 }
 
@@ -37,16 +45,29 @@ func (g *MockVideoGenerator) CreateTask(ctx context.Context, prompt VideoPrompt)
 
 	taskID := fmt.Sprintf("mock-video-%06d", g.nextID.Add(1))
 	now := time.Now().UTC()
-	g.mu.Lock()
-	g.tasks[taskID] = VideoTask{
-		TaskID:    taskID,
-		ShotID:    prompt.ShotID,
-		Status:    StatusPending,
-		CreatedAt: now,
-		UpdatedAt: now,
+	model := strings.TrimSpace(prompt.Model)
+	if model == "" {
+		model = g.config.Model
 	}
-	g.prompts[taskID] = prompt
-	g.mu.Unlock()
+
+	task := &VideoTask{
+		TaskID:           taskID,
+		ShotID:           prompt.ShotID,
+		Provider:         g.config.Provider,
+		Model:            model,
+		Prompt:           prompt.Prompt,
+		NegativePrompt:   prompt.NegativePrompt,
+		DurationSeconds:  prompt.DurationSeconds,
+		AspectRatio:      prompt.AspectRatio,
+		Subtitle:         prompt.Subtitle,
+		ExpectedClipName: prompt.ExpectedClipName,
+		Status:           StatusPending,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := g.store.Save(ctx, task); err != nil {
+		return "", fmt.Errorf("save video task: %w", err)
+	}
 	return taskID, nil
 }
 
@@ -55,27 +76,26 @@ func (g *MockVideoGenerator) GetTask(ctx context.Context, taskID string) (*Video
 		return nil, err
 	}
 
-	g.mu.Lock()
-	task, ok := g.tasks[taskID]
-	if !ok {
-		g.mu.Unlock()
-		return nil, fmt.Errorf("video task %q not found", taskID)
+	task, err := g.store.Get(ctx, taskID)
+	if err != nil {
+		return nil, err
 	}
-	prompt := g.prompts[taskID]
+
 	task.Status = StatusSucceeded
 	task.UpdatedAt = time.Now().UTC()
-	g.tasks[taskID] = task
-	g.mu.Unlock()
-
-	clipName := strings.TrimSpace(prompt.ExpectedClipName)
+	clipName := strings.TrimSpace(task.ExpectedClipName)
 	if clipName == "" {
-		clipName = prompt.ShotID + ".mp4"
+		clipName = task.ShotID + ".mp4"
+	}
+	task.VideoURL = "https://mock.video.local/clips/" + url.PathEscape(clipName)
+	if err := g.store.Update(ctx, task); err != nil {
+		return nil, fmt.Errorf("update video task: %w", err)
 	}
 
 	return &VideoResult{
 		TaskID:   task.TaskID,
 		ShotID:   task.ShotID,
-		Status:   StatusSucceeded,
-		VideoURL: "https://mock.video.local/clips/" + url.PathEscape(clipName),
+		Status:   task.Status,
+		VideoURL: task.VideoURL,
 	}, nil
 }

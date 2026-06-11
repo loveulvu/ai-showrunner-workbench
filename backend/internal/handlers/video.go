@@ -11,6 +11,19 @@ import (
 
 var videoGenerator video.VideoGenerator = video.NewMockVideoGenerator()
 
+func ConfigureVideoGeneratorFromEnv() (video.ProviderConfig, error) {
+	config, err := video.ProviderConfigFromEnv()
+	if err != nil {
+		return config, err
+	}
+	generator, err := video.NewGeneratorFromConfig(config, video.NewMemoryVideoTaskStore())
+	if err != nil {
+		return config, err
+	}
+	videoGenerator = generator
+	return config, nil
+}
+
 func CreateVideoTask(c *gin.Context) {
 	var prompt video.VideoPrompt
 	if err := c.ShouldBindJSON(&prompt); err != nil {

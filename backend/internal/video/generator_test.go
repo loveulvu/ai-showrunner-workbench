@@ -29,9 +29,10 @@ func TestMockVideoGeneratorCreateAndGetTask(t *testing.T) {
 		t.Fatal("CreateTask() taskID is empty")
 	}
 
-	generator.mu.RLock()
-	task := generator.tasks[taskID]
-	generator.mu.RUnlock()
+	task, err := generator.store.Get(context.Background(), taskID)
+	if err != nil {
+		t.Fatalf("store.Get() error = %v", err)
+	}
 	if task.Status != StatusPending {
 		t.Fatalf("created task status = %q, want %q", task.Status, StatusPending)
 	}

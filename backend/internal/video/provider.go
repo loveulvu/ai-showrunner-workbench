@@ -1,0 +1,96 @@
+package video
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"strconv"
+	"strings"
+)
+
+const (
+	defaultVideoProvider            = "mock"
+	defaultVideoModel               = "wan2.6-t2v"
+	defaultVideoTimeoutSeconds      = 600
+	defaultVideoPollIntervalSeconds = 10
+)
+
+type ProviderConfig struct {
+	Provider            string
+	Model               string
+	BaseURL             string
+	APIKeySet           bool
+	TimeoutSeconds      int
+	PollIntervalSeconds int
+}
+
+func ProviderConfigFromEnv() (ProviderConfig, error) {
+	timeoutSeconds, err := positiveIntFromEnv("VIDEO_TIMEOUT_SECONDS", defaultVideoTimeoutSeconds)
+	if err != nil {
+		return ProviderConfig{}, err
+	}
+	pollIntervalSeconds, err := positiveIntFromEnv("VIDEO_POLL_INTERVAL_SECONDS", defaultVideoPollIntervalSeconds)
+	if err != nil {
+		return ProviderConfig{}, err
+	}
+
+	provider := strings.ToLower(strings.TrimSpace(os.Getenv("VIDEO_PROVIDER")))
+	if provider == "" {
+		provider = defaultVideoProvider
+	}
+	model := strings.TrimSpace(os.Getenv("VIDEO_MODEL"))
+	if model == "" {
+		model = defaultVideoModel
+	}
+
+	return ProviderConfig{
+		Provider:            provider,
+		Model:               model,
+		BaseURL:             strings.TrimSpace(os.Getenv("VIDEO_BASE_URL")),
+		APIKeySet:           strings.TrimSpace(os.Getenv("VIDEO_API_KEY")) != "",
+		TimeoutSeconds:      timeoutSeconds,
+		PollIntervalSeconds: pollIntervalSeconds,
+	}, nil
+}
+
+func NewGeneratorFromConfig(config ProviderConfig, store VideoTaskStore) (VideoGenerator, error) {
+	if store == nil {
+		return nil, fmt.Errorf("video task store is required")
+	}
+
+	switch config.Provider {
+	case "mock":
+		return NewMockVideoGeneratorWithStore(config, store), nil
+	case "wan":
+		return nil, fmt.Errorf("wan provider not implemented yet")
+	default:
+		return nil, fmt.Errorf("unknown VIDEO_PROVIDER %q", config.Provider)
+	}
+}
+
+func NewGeneratorFromEnv(store VideoTaskStore) (VideoGenerator, error) {
+	config, err := ProviderConfigFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	return NewGeneratorFromConfig(config, store)
+}
+
+func LogProviderConfig(logger *log.Logger, config ProviderConfig) {
+	logger.Printf("VIDEO_PROVIDER=%s", config.Provider)
+	logger.Printf("VIDEO_MODEL=%s", config.Model)
+	logger.Printf("VIDEO_BASE_URL set: %t", strings.TrimSpace(config.BaseURL) != "")
+	logger.Printf("VIDEO_API_KEY set: %t", config.APIKeySet)
+}
+
+func positiveIntFromEnv(name string, fallback int) (int, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer number of seconds", name)
+	}
+	return parsed, nil
+}

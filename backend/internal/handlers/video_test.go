@@ -80,3 +80,22 @@ func TestGetVideoTaskNotFound(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
 }
+
+func TestConfigureVideoGeneratorFromEnvMockAndWan(t *testing.T) {
+	original := videoGenerator
+	t.Cleanup(func() { videoGenerator = original })
+
+	t.Setenv("VIDEO_PROVIDER", "mock")
+	config, err := ConfigureVideoGeneratorFromEnv()
+	if err != nil {
+		t.Fatalf("ConfigureVideoGeneratorFromEnv() mock error = %v", err)
+	}
+	if config.Provider != "mock" {
+		t.Fatalf("Provider = %q, want mock", config.Provider)
+	}
+
+	t.Setenv("VIDEO_PROVIDER", "wan")
+	if _, err := ConfigureVideoGeneratorFromEnv(); err == nil {
+		t.Fatal("ConfigureVideoGeneratorFromEnv() wan error = nil, want not implemented error")
+	}
+}
