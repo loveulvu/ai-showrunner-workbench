@@ -21,6 +21,7 @@ func main() {
 	r.POST("/api/showrunner/generate", handlers.GenerateShowrunner)
 	r.POST("/api/video/tasks", handlers.CreateVideoTask)
 	r.GET("/api/video/tasks/:task_id", handlers.GetVideoTask)
+	r.POST("/api/editor/render", handlers.RenderEditorDemo)
 	addr := ":8080"
 
 	if port := os.Getenv("PORT"); port != "" {
