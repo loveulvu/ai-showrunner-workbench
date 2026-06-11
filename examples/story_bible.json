@@ -1,0 +1,65 @@
+{
+  "title": "雨夜旧剧院",
+  "logline": "一个青年追查父亲失踪之谜，却在旧剧院发现能保存记忆的时钟装置。",
+  "global_characters": [
+    {
+      "id": "char_lin_che",
+      "name": "林澈",
+      "role": "主角",
+      "motivation": "查清父亲失踪真相"
+    },
+    {
+      "id": "char_xu_lan",
+      "name": "许岚",
+      "role": "盟友",
+      "motivation": "保护林澈并揭开剧院秘密"
+    },
+    {
+      "id": "char_gu_heng",
+      "name": "顾衡",
+      "role": "阻碍者",
+      "motivation": "夺回铜钥匙并隐藏旧实验"
+    }
+  ],
+  "timeline": [
+    {
+      "chapter_number": 1,
+      "event": "林澈收到神秘信件，铜钥匙和剧票指向海棠剧院。"
+    },
+    {
+      "chapter_number": 2,
+      "event": "林澈和许岚进入剧院地下室，发现旧时钟仍在运转。"
+    },
+    {
+      "chapter_number": 3,
+      "event": "顾衡现身阻止林澈启动时钟，记忆实验浮出水面。"
+    }
+  ],
+  "main_conflict": "林澈要公开父亲失踪真相，顾衡要封存剧院里的记忆实验。",
+  "scene_plan": [
+    {
+      "id": "scene_001",
+      "source_chapter": 1,
+      "summary": "林澈在雨巷收到父亲留下的铜钥匙。",
+      "location": "老街雨巷",
+      "time": "夜晚",
+      "characters": ["char_lin_che"]
+    },
+    {
+      "id": "scene_002",
+      "source_chapter": 2,
+      "summary": "林澈和许岚进入旧剧院地下室，发现时钟装置。",
+      "location": "海棠剧院地下室",
+      "time": "深夜",
+      "characters": ["char_lin_che", "char_xu_lan"]
+    },
+    {
+      "id": "scene_003",
+      "source_chapter": 3,
+      "summary": "顾衡逼迫林澈交出钥匙，三人在舞台上对峙。",
+      "location": "海棠剧院舞台",
+      "time": "黎明前",
+      "characters": ["char_lin_che", "char_xu_lan", "char_gu_heng"]
+    }
+  ]
+}

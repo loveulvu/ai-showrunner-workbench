@@ -1,0 +1,73 @@
+title: "雨夜旧剧院"
+source_chapters:
+  - number: 1
+    title: "雨夜钥匙"
+    summary: "林澈收到父亲留下的铜钥匙和半张剧票，线索指向海棠剧院。"
+  - number: 2
+    title: "旧剧院"
+    summary: "林澈和许岚进入剧院地下室，发现旧时钟仍在运转。"
+  - number: 3
+    title: "舞台对峙"
+    summary: "顾衡现身阻止林澈启动时钟，记忆实验浮出水面。"
+characters:
+  - id: "char_lin_che"
+    name: "林澈"
+    role: "主角"
+    description: "背负父亲失踪阴影的青年，渴望确认父亲留下的真相。"
+  - id: "char_xu_lan"
+    name: "许岚"
+    role: "盟友"
+    description: "林澈的调查伙伴，谨慎理性，同时愿意陪他面对危险。"
+  - id: "char_gu_heng"
+    name: "顾衡"
+    role: "阻碍者"
+    description: "旧剧院实验的守门人，试图阻止记忆装置再次启动。"
+scenes:
+  - id: "scene_001"
+    source_chapter: 1
+    location: "老街雨巷"
+    time: "夜晚"
+    summary: "林澈在雨巷收到父亲留下的铜钥匙。"
+    characters:
+      - "char_lin_che"
+    dialogues:
+      - character: "char_lin_che"
+        emotion: "迟疑"
+        line: "这把钥匙不像遗物，它像是在等我回来。"
+    actions:
+      - "林澈撑伞站在废弃邮箱前，铜钥匙滑入掌心。"
+  - id: "scene_002"
+    source_chapter: 2
+    location: "海棠剧院地下室"
+    time: "深夜"
+    summary: "林澈和许岚进入地下室，发现仍在运转的时钟装置。"
+    characters:
+      - "char_lin_che"
+      - "char_xu_lan"
+    dialogues:
+      - character: "char_xu_lan"
+        emotion: "紧张"
+        line: "这里不像废弃了三年，倒像有人一直在等你。"
+      - character: "char_lin_che"
+        emotion: "坚定"
+        line: "那我更要知道他等的是谁。"
+    actions:
+      - "手电光扫过齿轮，另一半剧票卡在钟摆后方。"
+  - id: "scene_003"
+    source_chapter: 3
+    location: "海棠剧院舞台"
+    time: "黎明前"
+    summary: "顾衡逼迫林澈交出钥匙，三人在舞台上对峙。"
+    characters:
+      - "char_lin_che"
+      - "char_xu_lan"
+      - "char_gu_heng"
+    dialogues:
+      - character: "char_gu_heng"
+        emotion: "压迫"
+        line: "把钥匙给我，那些记忆不该回来。"
+      - character: "char_lin_che"
+        emotion: "决绝"
+        line: "我找的不是记忆，是你们藏起来的真相。"
+    actions:
+      - "舞台灯一盏盏亮起，旧时钟的钟声覆盖了顾衡的脚步声。"

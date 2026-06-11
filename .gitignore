@@ -1,0 +1,29 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# Go
+backend/bin/
+backend/*.exe
+backend/*.test
+backend/coverage.out
+backend/.gotmp/
+backend/.gocache/
+
+# Env
+.env
+*.env
+.env.local
+frontend/.env.local
+backend/.env
+
+# UI/UX Pro Max Skill
+.codex/skills/ui-ux-pro-max/
