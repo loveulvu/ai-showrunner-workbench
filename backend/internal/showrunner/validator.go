@@ -39,7 +39,7 @@ func Validate(result ShowrunnerResult) ValidationResult {
 		if shot.ChapterNumber <= 0 {
 			validation.Errors = append(validation.Errors, prefix+".chapter_number must be positive")
 		}
-		if strings.TrimSpace(shot.Action) == "" && strings.TrimSpace(shot.Dialogue) == "" {
+		if strings.TrimSpace(shot.Action) == "" && strings.TrimSpace(shot.Dialogue.Text()) == "" {
 			validation.Errors = append(validation.Errors, prefix+" must contain action or dialogue")
 		}
 		if strings.TrimSpace(shot.ImagePrompt) == "" {

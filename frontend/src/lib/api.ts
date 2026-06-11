@@ -130,10 +130,10 @@ export type CharacterProfile = {
   name: string;
   role: string;
   personality: string[];
-  appearance: string;
-  costume: string;
-  voice_style: string;
-  key_motivation: string;
+  appearance: string[];
+  costume: string[];
+  voice_style: string[];
+  key_motivation: string[];
   consistency_notes: string[];
 };
 
@@ -163,7 +163,7 @@ export type Shot = {
   chapter_number: number;
   scene_id: string;
   characters: string[];
-  dialogue: string;
+  dialogue: string[];
   action: string;
   camera: string;
   background: string;
@@ -208,6 +208,28 @@ export type VideoResult = {
   status: VideoTaskStatus;
   video_url: string;
   error_message: string;
+};
+
+export type EditorClip = {
+  shot_id: string;
+  source_url: string;
+  duration_seconds: number;
+  subtitle: string;
+};
+
+export type EditingPlan = {
+  output_file: string;
+  aspect_ratio: string;
+  resolution: string;
+  fps: number;
+  clips: EditorClip[];
+};
+
+export type EditResult = {
+  output_file: string;
+  clip_count: number;
+  subtitles_file: string;
+  warnings: string[];
 };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
@@ -292,4 +314,19 @@ export async function getVideoTask(taskID: string): Promise<VideoResult> {
     throw new Error(data?.error ?? "Get mock video task failed");
   }
   return data as VideoResult;
+}
+
+export async function renderEditorDemo(plan: EditingPlan): Promise<EditResult> {
+  const response = await fetch(`${API_BASE_URL}/api/editor/render`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(plan)
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.error ?? "Render final demo failed");
+  }
+  return data as EditResult;
 }

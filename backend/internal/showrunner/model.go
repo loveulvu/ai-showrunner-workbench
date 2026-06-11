@@ -7,51 +7,51 @@ import (
 )
 
 type CharacterProfile struct {
-	ID               string   `json:"id"`
-	Name             string   `json:"name"`
-	Role             string   `json:"role"`
-	Personality      []string `json:"personality"`
-	Appearance       string   `json:"appearance"`
-	Costume          string   `json:"costume"`
-	VoiceStyle       string   `json:"voice_style"`
-	KeyMotivation    string   `json:"key_motivation"`
-	ConsistencyNotes []string `json:"consistency_notes"`
+	ID               string             `json:"id"`
+	Name             string             `json:"name"`
+	Role             string             `json:"role"`
+	Personality      FlexibleStringList `json:"personality"`
+	Appearance       FlexibleStringList `json:"appearance"`
+	Costume          FlexibleStringList `json:"costume"`
+	VoiceStyle       FlexibleStringList `json:"voice_style"`
+	KeyMotivation    FlexibleStringList `json:"key_motivation"`
+	ConsistencyNotes FlexibleStringList `json:"consistency_notes"`
 }
 
 type SceneProfile struct {
-	ID               string   `json:"id"`
-	Name             string   `json:"name"`
-	Location         string   `json:"location"`
-	TimeOfDay        string   `json:"time_of_day"`
-	Atmosphere       string   `json:"atmosphere"`
-	VisualStyle      string   `json:"visual_style"`
-	KeyProps         []string `json:"key_props"`
-	ConsistencyNotes []string `json:"consistency_notes"`
+	ID               string             `json:"id"`
+	Name             string             `json:"name"`
+	Location         string             `json:"location"`
+	TimeOfDay        string             `json:"time_of_day"`
+	Atmosphere       string             `json:"atmosphere"`
+	VisualStyle      string             `json:"visual_style"`
+	KeyProps         FlexibleStringList `json:"key_props"`
+	ConsistencyNotes FlexibleStringList `json:"consistency_notes"`
 }
 
 type ChapterBreakdown struct {
-	ChapterNumber  int      `json:"chapter_number"`
-	ChapterTitle   string   `json:"chapter_title"`
-	Summary        string   `json:"summary"`
-	MainCharacters []string `json:"main_characters"`
-	MainScenes     []string `json:"main_scenes"`
-	EmotionalArc   string   `json:"emotional_arc"`
-	KeyEvents      []string `json:"key_events"`
+	ChapterNumber  int                `json:"chapter_number"`
+	ChapterTitle   string             `json:"chapter_title"`
+	Summary        string             `json:"summary"`
+	MainCharacters FlexibleStringList `json:"main_characters"`
+	MainScenes     FlexibleStringList `json:"main_scenes"`
+	EmotionalArc   string             `json:"emotional_arc"`
+	KeyEvents      FlexibleStringList `json:"key_events"`
 }
 
 type Shot struct {
-	ID            string   `json:"id"`
-	ChapterNumber int      `json:"chapter_number"`
-	SceneID       string   `json:"scene_id"`
-	Characters    []string `json:"characters"`
-	Dialogue      string   `json:"dialogue"`
-	Action        string   `json:"action"`
-	Camera        string   `json:"camera"`
-	Background    string   `json:"background"`
-	DurationHint  string   `json:"duration_hint"`
-	ImagePrompt   string   `json:"image_prompt"`
-	VideoPrompt   string   `json:"video_prompt"`
-	AudioPrompt   string   `json:"audio_prompt"`
+	ID            string             `json:"id"`
+	ChapterNumber int                `json:"chapter_number"`
+	SceneID       string             `json:"scene_id"`
+	Characters    FlexibleStringList `json:"characters"`
+	Dialogue      FlexibleStringList `json:"dialogue"`
+	Action        string             `json:"action"`
+	Camera        string             `json:"camera"`
+	Background    string             `json:"background"`
+	DurationHint  string             `json:"duration_hint"`
+	ImagePrompt   string             `json:"image_prompt"`
+	VideoPrompt   string             `json:"video_prompt"`
+	AudioPrompt   string             `json:"audio_prompt"`
 }
 
 type AssetPromptSet struct {
@@ -67,7 +67,7 @@ type ShowrunnerResult struct {
 	Chapters     []ChapterBreakdown `json:"chapters"`
 	Shots        []Shot             `json:"shots"`
 	AssetPrompts AssetPromptSet     `json:"asset_prompts"`
-	Warnings     []string           `json:"warnings"`
+	Warnings     FlexibleStringList `json:"warnings"`
 }
 
 type GenerateInput struct {

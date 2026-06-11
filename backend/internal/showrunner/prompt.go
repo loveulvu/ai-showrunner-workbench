@@ -28,6 +28,13 @@ Requirements:
 7. Preserve the facts, character identities, chapter ownership, and events in the input.
 8. Output JSON only. Do not output Markdown, YAML, explanations, or comments.
 9. Use the requested style and language when they are provided.
+10. Every list field must be a JSON array, even when it contains only one item or no items.
+11. Never output an array field as a string.
+12. The output must be strict JSON only, with no Markdown fences and no explanatory text.
+
+List fields include:
+personality, appearance, costume, voice_style, key_motivation, consistency_notes, key_props,
+main_characters, main_scenes, key_events, characters, dialogue, and warnings.
 
 Required character fields:
 id, name, role, personality, appearance, costume, voice_style, key_motivation, consistency_notes

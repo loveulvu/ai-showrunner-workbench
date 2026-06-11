@@ -2,58 +2,93 @@
 
 import { useState } from "react";
 import { Alert, Button, Card, Tag } from "antd";
-import { createVideoTask, getVideoTask } from "@/lib/api";
-import type { ShowrunnerResult, Shot, VideoResult } from "@/lib/api";
+import { createVideoTask, getVideoTask, renderEditorDemo } from "@/lib/api";
+import type { EditResult, ShowrunnerResult, Shot, VideoResult } from "@/lib/api";
 
 export function ShowrunnerOutput({ result }: { result: ShowrunnerResult }) {
   const [tasks, setTasks] = useState<Record<string, VideoResult>>({});
-  const [busyShot, setBusyShot] = useState("");
+  const [busyAction, setBusyAction] = useState("");
   const [error, setError] = useState("");
-  const eligibleShots = result.shots.filter((shot) => shot.video_prompt || shot.image_prompt);
+  const [editResult, setEditResult] = useState<EditResult | null>(null);
+  const demoShots = result.shots.slice(0, 3);
+  const allCreated = demoShots.length > 0 && demoShots.every((shot) => tasks[shot.id]);
+  const allSucceeded = demoShots.length > 0 && demoShots.every((shot) => tasks[shot.id]?.status === "succeeded" && tasks[shot.id]?.video_url);
 
-  async function handleCreate(shot: Shot) {
-    setBusyShot(shot.id);
+  async function handleCreateDemoTasks() {
+    if (!window.confirm("This may consume Wan video credits. Create up to 3 video tasks?")) return;
+    setBusyAction("create");
     setError("");
     try {
-      const taskID = await createVideoTask({
-        shot_id: shot.id,
-        model: "mock-video-model",
-        prompt: shot.video_prompt || shot.image_prompt,
-        negative_prompt: "",
-        duration_seconds: parseDuration(shot.duration_hint),
-        aspect_ratio: "16:9",
-        subtitle: shot.dialogue,
-        expected_clip_name: `${shot.id}.mp4`
-      });
-      setTasks((current) => ({
-        ...current,
-        [shot.id]: {
-          task_id: taskID,
-          shot_id: shot.id,
-          status: "pending",
-          video_url: "",
-          error_message: ""
-        }
-      }));
+      for (const shot of demoShots) {
+        if (tasks[shot.id]) continue;
+        const taskID = await createVideoTask(videoPromptForShot(shot));
+        setTasks((current) => ({
+          ...current,
+          [shot.id]: {
+            task_id: taskID,
+            shot_id: shot.id,
+            status: "pending",
+            video_url: "",
+            error_message: ""
+          }
+        }));
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Create mock video task failed");
+      setError(err instanceof Error ? err.message : "Create video tasks failed");
     } finally {
-      setBusyShot("");
+      setBusyAction("");
     }
   }
 
-  async function handleRefresh(shot: Shot) {
-    const task = tasks[shot.id];
-    if (!task) return;
-    setBusyShot(shot.id);
+  async function handlePollStatuses() {
+    if (!allCreated) return;
+    setBusyAction("poll");
     setError("");
     try {
-      const refreshed = await getVideoTask(task.task_id);
-      setTasks((current) => ({ ...current, [shot.id]: refreshed }));
+      let current = { ...tasks };
+      while (demoShots.some((shot) => !isTerminal(current[shot.id]?.status))) {
+        const refreshedEntries = await Promise.all(
+          demoShots.map(async (shot) => {
+            const task = current[shot.id];
+            if (!task || isTerminal(task.status)) return [shot.id, task] as const;
+            return [shot.id, await getVideoTask(task.task_id)] as const;
+          })
+        );
+        current = Object.fromEntries(refreshedEntries) as Record<string, VideoResult>;
+        setTasks(current);
+        if (demoShots.some((shot) => !isTerminal(current[shot.id]?.status))) {
+          await delay(10_000);
+        }
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Get mock video task failed");
+      setError(err instanceof Error ? err.message : "Refresh video task status failed");
     } finally {
-      setBusyShot("");
+      setBusyAction("");
+    }
+  }
+
+  async function handleRenderDemo() {
+    if (!allSucceeded) return;
+    setBusyAction("render");
+    setError("");
+    setEditResult(null);
+    try {
+      setEditResult(await renderEditorDemo({
+        output_file: "../outputs/final_demo.mp4",
+        aspect_ratio: "16:9",
+        resolution: "1280x720",
+        fps: 24,
+        clips: demoShots.map((shot) => ({
+          shot_id: shot.id,
+          source_url: tasks[shot.id].video_url,
+          duration_seconds: parseDuration(shot.duration_hint),
+          subtitle: stringListText(shot.dialogue)
+        }))
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Render final demo failed");
+    } finally {
+      setBusyAction("");
     }
   }
 
@@ -62,8 +97,8 @@ export function ShowrunnerOutput({ result }: { result: ShowrunnerResult }) {
       <Card className="tool-card artifact-card">
         <div className="card-heading">
           <span className="section-kicker">04 / SHOWRUNNER OUTPUT</span>
-          <h2>Showrunner 输出</h2>
-          <p>角色设定、场景设定、章节拆解、分镜列表与资产生成提示词。</p>
+          <h2>Showrunner Output</h2>
+          <p>Characters, scenes, chapter breakdowns, shots, and generation prompts.</p>
         </div>
         <div className="status-tags showrunner-tags">
           <Tag>{result.characters.length} Characters</Tag>
@@ -71,42 +106,91 @@ export function ShowrunnerOutput({ result }: { result: ShowrunnerResult }) {
           <Tag>{result.shots.length} Shots</Tag>
           <Tag>{result.warnings.length} Warnings</Tag>
         </div>
+
         {error ? <Alert className="error-card video-task-error" type="error" showIcon message={error} /> : null}
-        {eligibleShots.length ? (
-          <div className="video-task-list">
+
+        {result.shots.length ? (
+          <div className="video-task-list short-demo-workflow">
             <div className="card-heading">
-              <span className="section-kicker">PHASE 3 / MOCK VIDEO TASKS</span>
-              <h3>Video Generator Interface</h3>
-              <p>创建并查询内存中的 Mock 视频任务，不调用真实视频生成服务。</p>
+              <span className="section-kicker">PHASE 6 / SHORT DEMO WORKFLOW</span>
+              <h3>Generate Short Demo</h3>
+              <p>Uses the first {demoShots.length} shots. Creating tasks may consume Wan video credits.</p>
             </div>
-            {eligibleShots.map((shot) => {
+            <div className="short-demo-actions">
+              <Button type="primary" disabled={allCreated || busyAction !== ""} loading={busyAction === "create"} onClick={handleCreateDemoTasks}>
+                Create 3 Video Tasks
+              </Button>
+              <Button disabled={!allCreated || busyAction !== ""} loading={busyAction === "poll"} onClick={handlePollStatuses}>
+                Refresh Status
+              </Button>
+              <Button disabled={!allSucceeded || busyAction !== ""} loading={busyAction === "render"} onClick={handleRenderDemo}>
+                Render Final Demo
+              </Button>
+            </div>
+            {demoShots.map((shot) => {
               const task = tasks[shot.id];
               return (
                 <div className="video-task-row" key={shot.id}>
                   <div>
                     <strong>{shot.id}</strong>
-                    <small>{shot.video_prompt || shot.image_prompt}</small>
-                    {task ? <code>{task.task_id}</code> : null}
-                    {task?.video_url ? <code>{task.video_url}</code> : null}
+                    <small>{summarizePrompt(shot.video_prompt || shot.image_prompt)}</small>
+                    <small>Duration: {parseDuration(shot.duration_hint)}s</small>
+                    <code>Task: {task?.task_id ?? "not created"}</code>
+                    <code>Video URL: {task?.video_url || "not available"}</code>
                   </div>
                   <Tag>{task?.status ?? "not created"}</Tag>
-                  {task ? (
-                    <Button loading={busyShot === shot.id} onClick={() => handleRefresh(shot)}>Refresh Mock Status</Button>
-                  ) : (
-                    <Button loading={busyShot === shot.id} onClick={() => handleCreate(shot)}>Create Mock Video Task</Button>
-                  )}
                 </div>
               );
             })}
+            {editResult ? (
+              <Alert
+                type="success"
+                showIcon
+                message="Final demo rendered"
+                description={`Output: ${editResult.output_file}${editResult.subtitles_file ? ` | Subtitles: ${editResult.subtitles_file}` : ""}`}
+              />
+            ) : null}
           </div>
-        ) : null}
+        ) : (
+          <Alert className="video-task-error" type="info" showIcon message="No shots available for short demo." />
+        )}
+
         <pre className="showrunner-json">{JSON.stringify(result, null, 2)}</pre>
       </Card>
     </section>
   );
 }
 
+function videoPromptForShot(shot: Shot) {
+  return {
+    shot_id: shot.id,
+    model: "",
+    prompt: shot.video_prompt || shot.image_prompt,
+    negative_prompt: "",
+    duration_seconds: parseDuration(shot.duration_hint),
+    aspect_ratio: "16:9",
+    subtitle: stringListText(shot.dialogue),
+    expected_clip_name: `${shot.id}.mp4`
+  };
+}
+
 function parseDuration(value: string): number {
   const duration = Number.parseInt(value, 10);
   return Number.isFinite(duration) && duration > 0 ? duration : 5;
+}
+
+function summarizePrompt(value: string): string {
+  return value.length > 180 ? `${value.slice(0, 180)}...` : value;
+}
+
+function isTerminal(status?: string): boolean {
+  return status === "succeeded" || status === "failed";
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+function stringListText(values: string[]): string {
+  return values.join(" ");
 }

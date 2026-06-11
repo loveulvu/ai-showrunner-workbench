@@ -24,7 +24,7 @@ func (s *Service) Generate(ctx context.Context, input GenerateInput) (Showrunner
 	}
 
 	validation := Validate(result)
-	result.Warnings = validation.Warnings
+	result.Warnings = FlexibleStringList(validation.Warnings)
 	if !validation.Passed {
 		return result, fmt.Errorf("showrunner validation failed: %v", validation.Errors)
 	}

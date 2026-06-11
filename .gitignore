@@ -30,5 +30,8 @@ backend/.gocache/
 frontend/.env.local
 backend/.env
 
+# Generated media and local editing plans
+outputs/
+
 # UI/UX Pro Max Skill
 .codex/skills/ui-ux-pro-max/

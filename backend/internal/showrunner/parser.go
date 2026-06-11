@@ -20,14 +20,26 @@ func normalizeResult(result *ShowrunnerResult) {
 	if result.Characters == nil {
 		result.Characters = []CharacterProfile{}
 	}
+	for index := range result.Characters {
+		normalizeCharacterProfile(&result.Characters[index])
+	}
 	if result.Scenes == nil {
 		result.Scenes = []SceneProfile{}
+	}
+	for index := range result.Scenes {
+		normalizeSceneProfile(&result.Scenes[index])
 	}
 	if result.Chapters == nil {
 		result.Chapters = []ChapterBreakdown{}
 	}
+	for index := range result.Chapters {
+		normalizeChapterBreakdown(&result.Chapters[index])
+	}
 	if result.Shots == nil {
 		result.Shots = []Shot{}
+	}
+	for index := range result.Shots {
+		normalizeShot(&result.Shots[index])
 	}
 	if result.AssetPrompts.CharacterPrompts == nil {
 		result.AssetPrompts.CharacterPrompts = map[string]string{}
@@ -42,7 +54,38 @@ func normalizeResult(result *ShowrunnerResult) {
 		result.AssetPrompts.VoicePrompts = map[string]string{}
 	}
 	if result.Warnings == nil {
-		result.Warnings = []string{}
+		result.Warnings = FlexibleStringList{}
+	}
+}
+
+func normalizeCharacterProfile(profile *CharacterProfile) {
+	normalizeFlexibleList(&profile.Personality)
+	normalizeFlexibleList(&profile.Appearance)
+	normalizeFlexibleList(&profile.Costume)
+	normalizeFlexibleList(&profile.VoiceStyle)
+	normalizeFlexibleList(&profile.KeyMotivation)
+	normalizeFlexibleList(&profile.ConsistencyNotes)
+}
+
+func normalizeSceneProfile(profile *SceneProfile) {
+	normalizeFlexibleList(&profile.KeyProps)
+	normalizeFlexibleList(&profile.ConsistencyNotes)
+}
+
+func normalizeChapterBreakdown(chapter *ChapterBreakdown) {
+	normalizeFlexibleList(&chapter.MainCharacters)
+	normalizeFlexibleList(&chapter.MainScenes)
+	normalizeFlexibleList(&chapter.KeyEvents)
+}
+
+func normalizeShot(shot *Shot) {
+	normalizeFlexibleList(&shot.Characters)
+	normalizeFlexibleList(&shot.Dialogue)
+}
+
+func normalizeFlexibleList(list *FlexibleStringList) {
+	if *list == nil {
+		*list = FlexibleStringList{}
 	}
 }
 

@@ -465,6 +465,9 @@ h4 { margin-bottom: 8px; font-size: 13px; }
 .video-task-row > div { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
 .video-task-row small, .video-task-row code { overflow-wrap: anywhere; color: var(--muted); font: 9px/1.5 var(--font-mono); }
 .video-task-error { margin-bottom: 14px; }
+.short-demo-workflow { border-top: 1px solid var(--line); padding-top: 18px; }
+.short-demo-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.short-demo-workflow .video-task-row { grid-template-columns: minmax(0, 1fr) auto; }
 
 .issue-list { display: flex; flex-direction: column; gap: 7px; }
 .issue-item { border: 1px solid #e6c3be; border-radius: 8px; padding: 11px; background: #fff9f8; }
