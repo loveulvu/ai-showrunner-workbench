@@ -135,6 +135,18 @@ export type CharacterProfile = {
   voice_style: string[];
   key_motivation: string[];
   consistency_notes: string[];
+  visual_identity: CharacterVisualIdentity;
+};
+
+export type CharacterVisualIdentity = {
+  age: string;
+  face: string;
+  hairstyle: string;
+  costume: string;
+  color_palette: string;
+  expression_baseline: string;
+  body_type: string;
+  consistency_prompt: string;
 };
 
 export type SceneProfile = {
@@ -146,6 +158,16 @@ export type SceneProfile = {
   visual_style: string;
   key_props: string[];
   consistency_notes: string[];
+  visual_identity: SceneVisualIdentity;
+};
+
+export type SceneVisualIdentity = {
+  architecture: string;
+  lighting: string;
+  color_palette: string;
+  atmosphere: string;
+  key_props: string[];
+  consistency_prompt: string;
 };
 
 export type ChapterBreakdown = {
@@ -170,7 +192,16 @@ export type Shot = {
   duration_hint: string;
   image_prompt: string;
   video_prompt: string;
+  negative_prompt: string;
   audio_prompt: string;
+  character_visuals: string[];
+  scene_visuals: string;
+  camera_angle: string;
+  camera_movement: string;
+  composition: string;
+  lighting: string;
+  motion: string;
+  continuity_notes: string;
 };
 
 export type AssetPromptSet = {
@@ -261,7 +292,7 @@ export async function generateScreenplay(novelText: string): Promise<GenerateRes
 
 export async function generateShowrunner(
   result: GenerateResponse,
-  style = "",
+  style = "cinematic xianxia short drama",
   language = "zh-CN"
 ): Promise<ShowrunnerResult> {
   let response: Response;

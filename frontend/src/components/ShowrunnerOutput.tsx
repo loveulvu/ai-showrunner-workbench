@@ -275,7 +275,16 @@ function resolveShots(result: ShowrunnerResult | null): Shot[] {
       duration_hint: shot.duration_hint ?? "5s",
       image_prompt: shot.image_prompt ?? "",
       video_prompt: shot.video_prompt ?? shot.image_prompt ?? "",
-      audio_prompt: shot.audio_prompt ?? ""
+      negative_prompt: shot.negative_prompt ?? defaultNegativePrompt,
+      audio_prompt: shot.audio_prompt ?? "",
+      character_visuals: arrayOrEmpty(shot.character_visuals),
+      scene_visuals: shot.scene_visuals ?? "",
+      camera_angle: shot.camera_angle ?? "",
+      camera_movement: shot.camera_movement ?? "",
+      composition: shot.composition ?? "",
+      lighting: shot.lighting ?? "",
+      motion: shot.motion ?? "",
+      continuity_notes: shot.continuity_notes ?? ""
     }];
   });
 }
@@ -289,13 +298,15 @@ function videoPromptForShot(shot: Shot) {
     shot_id: shot.id,
     model: "",
     prompt: shot.video_prompt || shot.image_prompt,
-    negative_prompt: "",
+    negative_prompt: shot.negative_prompt || defaultNegativePrompt,
     duration_seconds: parseDuration(shot.duration_hint),
     aspect_ratio: "16:9",
     subtitle: stringListText(shot.dialogue),
     expected_clip_name: `${shot.id}.mp4`
   };
 }
+
+const defaultNegativePrompt = "blurry, distorted face, inconsistent character, different outfit, extra limbs, bad hands, text, subtitles, watermark, logo, low quality, jump cut, flickering, deformed body";
 
 function parseDuration(value: string): number {
   const duration = Number.parseInt(value, 10);

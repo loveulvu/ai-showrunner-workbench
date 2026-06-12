@@ -22,8 +22,8 @@ func TestValidateRequiresCoreAssetsAndShotFields(t *testing.T) {
 	if !validation.Passed {
 		t.Fatalf("Validate() passed = false, errors = %v", validation.Errors)
 	}
-	if len(validation.Warnings) != 2 {
-		t.Fatalf("warnings = %v, want video and audio warnings", validation.Warnings)
+	if len(validation.Warnings) != 3 {
+		t.Fatalf("warnings = %v, want video, negative, and audio warnings", validation.Warnings)
 	}
 }
 

@@ -3,7 +3,7 @@ package showrunner
 import "testing"
 
 func TestMockResultProvidesDisplayableAssets(t *testing.T) {
-	result := MockResult(GenerateInput{Style: "cinematic animation"})
+	result := MockResult(GenerateInput{})
 	validation := Validate(result)
 
 	if !validation.Passed {
@@ -24,6 +24,7 @@ func TestMockResultProvidesDisplayableAssets(t *testing.T) {
 
 	withVideo := 0
 	withAudio := 0
+	sceneID := result.Shots[0].SceneID
 	for _, shot := range result.Shots {
 		if shot.ImagePrompt == "" {
 			t.Fatalf("shot %q image_prompt is empty", shot.ID)
@@ -31,11 +32,23 @@ func TestMockResultProvidesDisplayableAssets(t *testing.T) {
 		if shot.VideoPrompt != "" {
 			withVideo++
 		}
+		if shot.NegativePrompt == "" || shot.CameraMovement == "" || shot.ContinuityNotes == "" {
+			t.Fatalf("shot %q missing video continuity fields: %#v", shot.ID, shot)
+		}
+		if shot.SceneID != sceneID {
+			t.Fatalf("first three shots are not continuous: %q != %q", shot.SceneID, sceneID)
+		}
 		if shot.AudioPrompt != "" {
 			withAudio++
 		}
 	}
 	if withVideo == 0 || withAudio == 0 {
 		t.Fatalf("mock prompts with video=%d audio=%d, want at least one each", withVideo, withAudio)
+	}
+	if result.Characters[0].VisualIdentity.ConsistencyPrompt == "" || result.Scenes[0].VisualIdentity.ConsistencyPrompt == "" {
+		t.Fatal("mock continuity bible is incomplete")
+	}
+	if result.Scenes[0].VisualStyle != defaultVideoStyle {
+		t.Fatalf("default visual style = %q, want %q", result.Scenes[0].VisualStyle, defaultVideoStyle)
 	}
 }

@@ -22,7 +22,7 @@ func TestServiceAddsValidationWarnings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	if len(got.Warnings) != 2 {
-		t.Fatalf("warnings = %v, want missing video and audio warnings", got.Warnings)
+	if len(got.Warnings) != 0 {
+		t.Fatalf("warnings = %v, want no warnings for complete mock prompts", got.Warnings)
 	}
 }

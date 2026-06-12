@@ -9,26 +9,48 @@ import (
 )
 
 type CharacterProfile struct {
-	ID               string             `json:"id"`
-	Name             string             `json:"name"`
-	Role             string             `json:"role"`
-	Personality      FlexibleStringList `json:"personality"`
-	Appearance       FlexibleStringList `json:"appearance"`
-	Costume          FlexibleStringList `json:"costume"`
-	VoiceStyle       FlexibleStringList `json:"voice_style"`
-	KeyMotivation    FlexibleStringList `json:"key_motivation"`
-	ConsistencyNotes FlexibleStringList `json:"consistency_notes"`
+	ID               string                  `json:"id"`
+	Name             string                  `json:"name"`
+	Role             string                  `json:"role"`
+	Personality      FlexibleStringList      `json:"personality"`
+	Appearance       FlexibleStringList      `json:"appearance"`
+	Costume          FlexibleStringList      `json:"costume"`
+	VoiceStyle       FlexibleStringList      `json:"voice_style"`
+	KeyMotivation    FlexibleStringList      `json:"key_motivation"`
+	ConsistencyNotes FlexibleStringList      `json:"consistency_notes"`
+	VisualIdentity   CharacterVisualIdentity `json:"visual_identity"`
+}
+
+type CharacterVisualIdentity struct {
+	Age                string `json:"age"`
+	Face               string `json:"face"`
+	Hairstyle          string `json:"hairstyle"`
+	Costume            string `json:"costume"`
+	ColorPalette       string `json:"color_palette"`
+	ExpressionBaseline string `json:"expression_baseline"`
+	BodyType           string `json:"body_type"`
+	ConsistencyPrompt  string `json:"consistency_prompt"`
 }
 
 type SceneProfile struct {
-	ID               string             `json:"id"`
-	Name             string             `json:"name"`
-	Location         string             `json:"location"`
-	TimeOfDay        string             `json:"time_of_day"`
-	Atmosphere       string             `json:"atmosphere"`
-	VisualStyle      string             `json:"visual_style"`
-	KeyProps         FlexibleStringList `json:"key_props"`
-	ConsistencyNotes FlexibleStringList `json:"consistency_notes"`
+	ID               string              `json:"id"`
+	Name             string              `json:"name"`
+	Location         string              `json:"location"`
+	TimeOfDay        string              `json:"time_of_day"`
+	Atmosphere       string              `json:"atmosphere"`
+	VisualStyle      string              `json:"visual_style"`
+	KeyProps         FlexibleStringList  `json:"key_props"`
+	ConsistencyNotes FlexibleStringList  `json:"consistency_notes"`
+	VisualIdentity   SceneVisualIdentity `json:"visual_identity"`
+}
+
+type SceneVisualIdentity struct {
+	Architecture      string             `json:"architecture"`
+	Lighting          string             `json:"lighting"`
+	ColorPalette      string             `json:"color_palette"`
+	Atmosphere        string             `json:"atmosphere"`
+	KeyProps          FlexibleStringList `json:"key_props"`
+	ConsistencyPrompt string             `json:"consistency_prompt"`
 }
 
 type ChapterBreakdown struct {
@@ -61,38 +83,56 @@ func (chapter *ChapterBreakdown) UnmarshalJSON(data []byte) error {
 }
 
 type Shot struct {
-	ID            string             `json:"id"`
-	ChapterNumber int                `json:"chapter_number"`
-	SceneID       string             `json:"scene_id"`
-	Characters    FlexibleStringList `json:"characters"`
-	Dialogue      FlexibleStringList `json:"dialogue"`
-	Action        string             `json:"action"`
-	Camera        string             `json:"camera"`
-	Background    string             `json:"background"`
-	DurationHint  string             `json:"duration_hint"`
-	ImagePrompt   string             `json:"image_prompt"`
-	VideoPrompt   string             `json:"video_prompt"`
-	AudioPrompt   string             `json:"audio_prompt"`
+	ID               string             `json:"id"`
+	ChapterNumber    int                `json:"chapter_number"`
+	SceneID          string             `json:"scene_id"`
+	Characters       FlexibleStringList `json:"characters"`
+	Dialogue         FlexibleStringList `json:"dialogue"`
+	Action           string             `json:"action"`
+	Camera           string             `json:"camera"`
+	Background       string             `json:"background"`
+	DurationHint     string             `json:"duration_hint"`
+	ImagePrompt      string             `json:"image_prompt"`
+	VideoPrompt      string             `json:"video_prompt"`
+	NegativePrompt   string             `json:"negative_prompt"`
+	AudioPrompt      string             `json:"audio_prompt"`
+	CharacterVisuals FlexibleStringList `json:"character_visuals"`
+	SceneVisuals     string             `json:"scene_visuals"`
+	CameraAngle      string             `json:"camera_angle"`
+	CameraMovement   string             `json:"camera_movement"`
+	Composition      string             `json:"composition"`
+	Lighting         string             `json:"lighting"`
+	Motion           string             `json:"motion"`
+	ContinuityNotes  string             `json:"continuity_notes"`
 }
 
 func (shot *Shot) UnmarshalJSON(data []byte) error {
 	type shotFields struct {
-		ID              json.RawMessage    `json:"id"`
-		ShotID          json.RawMessage    `json:"shot_id"`
-		ChapterNumber   json.RawMessage    `json:"chapter_number"`
-		SceneID         json.RawMessage    `json:"scene_id"`
-		Characters      FlexibleStringList `json:"characters"`
-		Dialogue        FlexibleStringList `json:"dialogue"`
-		Subtitle        FlexibleStringList `json:"subtitle"`
-		Action          string             `json:"action"`
-		Camera          string             `json:"camera"`
-		Background      string             `json:"background"`
-		DurationHint    json.RawMessage    `json:"duration_hint"`
-		DurationSeconds json.RawMessage    `json:"duration_seconds"`
-		ImagePrompt     string             `json:"image_prompt"`
-		VisualPrompt    string             `json:"visual_prompt"`
-		VideoPrompt     string             `json:"video_prompt"`
-		AudioPrompt     string             `json:"audio_prompt"`
+		ID               json.RawMessage    `json:"id"`
+		ShotID           json.RawMessage    `json:"shot_id"`
+		ChapterNumber    json.RawMessage    `json:"chapter_number"`
+		SceneID          json.RawMessage    `json:"scene_id"`
+		Characters       FlexibleStringList `json:"characters"`
+		Dialogue         FlexibleStringList `json:"dialogue"`
+		Subtitle         FlexibleStringList `json:"subtitle"`
+		Action           string             `json:"action"`
+		Camera           string             `json:"camera"`
+		Background       string             `json:"background"`
+		DurationHint     json.RawMessage    `json:"duration_hint"`
+		DurationSeconds  json.RawMessage    `json:"duration_seconds"`
+		ImagePrompt      string             `json:"image_prompt"`
+		VisualPrompt     string             `json:"visual_prompt"`
+		VideoPrompt      string             `json:"video_prompt"`
+		NegativePrompt   string             `json:"negative_prompt"`
+		AudioPrompt      string             `json:"audio_prompt"`
+		CharacterVisuals FlexibleStringList `json:"character_visuals"`
+		SceneVisuals     string             `json:"scene_visuals"`
+		CameraAngle      string             `json:"camera_angle"`
+		CameraMovement   string             `json:"camera_movement"`
+		Composition      string             `json:"composition"`
+		Lighting         string             `json:"lighting"`
+		Motion           string             `json:"motion"`
+		ContinuityNotes  string             `json:"continuity_notes"`
 	}
 
 	var fields shotFields
@@ -136,7 +176,16 @@ func (shot *Shot) UnmarshalJSON(data []byte) error {
 	shot.Background = fields.Background
 	shot.ImagePrompt = fields.ImagePrompt
 	shot.VideoPrompt = fields.VideoPrompt
+	shot.NegativePrompt = fields.NegativePrompt
 	shot.AudioPrompt = fields.AudioPrompt
+	shot.CharacterVisuals = fields.CharacterVisuals
+	shot.SceneVisuals = fields.SceneVisuals
+	shot.CameraAngle = fields.CameraAngle
+	shot.CameraMovement = fields.CameraMovement
+	shot.Composition = fields.Composition
+	shot.Lighting = fields.Lighting
+	shot.Motion = fields.Motion
+	shot.ContinuityNotes = fields.ContinuityNotes
 	return nil
 }
 

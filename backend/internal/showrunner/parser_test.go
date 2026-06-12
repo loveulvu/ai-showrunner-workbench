@@ -63,6 +63,29 @@ func TestParseJSONAcceptsDurationAndShotIDStringOrNumber(t *testing.T) {
 	}
 }
 
+func TestParseJSONAcceptsContinuityAndVideoPromptFields(t *testing.T) {
+	raw := `{
+		"characters":[{"id":"lead","visual_identity":{"age":"24","face":"oval","hairstyle":"high ponytail","costume":"blue robe","color_palette":"blue silver","expression_baseline":"focused","body_type":"lean","consistency_prompt":"same lead"}}],
+		"scenes":[{"id":"hall","visual_identity":{"architecture":"timber hall","lighting":"moonlight","color_palette":"blue amber","atmosphere":"tense","key_props":"bronze key","consistency_prompt":"same hall"}}],
+		"shots":[{"id":"shot-1","character_visuals":"same lead","scene_visuals":"same hall","camera_angle":"eye level","camera_movement":"push in","composition":"centered","lighting":"moonlight","motion":"raises key","continuity_notes":"same position","video_prompt":"cinematic action","negative_prompt":"blurry, text"}]
+	}`
+
+	result, err := ParseJSON(raw)
+	if err != nil {
+		t.Fatalf("ParseJSON() error = %v", err)
+	}
+	if result.Characters[0].VisualIdentity.Costume != "blue robe" {
+		t.Fatalf("character identity = %#v", result.Characters[0].VisualIdentity)
+	}
+	if result.Scenes[0].VisualIdentity.KeyProps.Text() != "bronze key" {
+		t.Fatalf("scene identity = %#v", result.Scenes[0].VisualIdentity)
+	}
+	shot := result.Shots[0]
+	if shot.CharacterVisuals.Text() != "same lead" || shot.CameraMovement != "push in" || shot.NegativePrompt != "blurry, text" {
+		t.Fatalf("shot = %#v", shot)
+	}
+}
+
 func TestParseJSONAcceptsTopLevelAliasesAndFlexibleAssetPrompts(t *testing.T) {
 	raw := `{
 		"shot_list":[{"id":"shot-1","chapter_number":1,"image_prompt":"frame"}],

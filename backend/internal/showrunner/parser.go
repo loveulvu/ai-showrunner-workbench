@@ -126,6 +126,7 @@ func normalizeCharacterProfile(profile *CharacterProfile) {
 func normalizeSceneProfile(profile *SceneProfile) {
 	normalizeFlexibleList(&profile.KeyProps)
 	normalizeFlexibleList(&profile.ConsistencyNotes)
+	normalizeFlexibleList(&profile.VisualIdentity.KeyProps)
 }
 
 func normalizeChapterBreakdown(chapter *ChapterBreakdown) {
@@ -137,6 +138,7 @@ func normalizeChapterBreakdown(chapter *ChapterBreakdown) {
 func normalizeShot(shot *Shot) {
 	normalizeFlexibleList(&shot.Characters)
 	normalizeFlexibleList(&shot.Dialogue)
+	normalizeFlexibleList(&shot.CharacterVisuals)
 }
 
 func normalizeFlexibleList(list *FlexibleStringList) {

@@ -48,6 +48,9 @@ func Validate(result ShowrunnerResult) ValidationResult {
 		if strings.TrimSpace(shot.VideoPrompt) == "" {
 			validation.Warnings = append(validation.Warnings, prefix+".video_prompt is empty")
 		}
+		if strings.TrimSpace(shot.NegativePrompt) == "" {
+			validation.Warnings = append(validation.Warnings, prefix+".negative_prompt is empty")
+		}
 		if strings.TrimSpace(shot.AudioPrompt) == "" {
 			validation.Warnings = append(validation.Warnings, prefix+".audio_prompt is empty")
 		}
