@@ -11,6 +11,8 @@ import { WorkflowStepper } from "@/components/WorkflowStepper";
 import { generateScreenplay, generateShowrunner } from "@/lib/api";
 import type { GenerateResponse, ShowrunnerResult } from "@/lib/api";
 
+type ShowrunnerStatus = "not-started" | "generating" | "failed" | "ready";
+
 const sampleText = `第一章 雨夜钥匙
 林澈在雨夜回到老街。巷口的邮箱早已停用，却在这天晚上吐出一封没有署名的信。
 信封里只有一把铜钥匙和半张旧剧票。剧票背面写着父亲熟悉的字迹：海棠剧院，午夜之后。
@@ -27,6 +29,7 @@ export default function Home() {
   const [novelText, setNovelText] = useState("");
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [showrunnerResult, setShowrunnerResult] = useState<ShowrunnerResult | null>(null);
+  const [showrunnerStatus, setShowrunnerStatus] = useState<ShowrunnerStatus>("not-started");
   const [showrunnerError, setShowrunnerError] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -53,14 +56,18 @@ export default function Home() {
     setError("");
     setShowrunnerError("");
     setShowrunnerResult(null);
+    setShowrunnerStatus("not-started");
 
     try {
       const screenplayResult = await generateScreenplay(novelText);
       setResult(screenplayResult);
+      setShowrunnerStatus("generating");
       try {
         setShowrunnerResult(await generateShowrunner(screenplayResult));
+        setShowrunnerStatus("ready");
       } catch (showrunnerErr) {
         setShowrunnerError(showrunnerErr instanceof Error ? showrunnerErr.message : "Showrunner generation failed");
+        setShowrunnerStatus("failed");
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
@@ -143,8 +150,7 @@ export default function Home() {
         </div>
 
         {result && !loading ? <ResultSections result={result} detailsOnly /> : null}
-        {showrunnerError && !loading ? <Alert className="error-card showrunner-error" type="warning" showIcon message={showrunnerError} /> : null}
-        {showrunnerResult && !loading ? <ShowrunnerOutput result={showrunnerResult} /> : null}
+        <ShowrunnerOutput result={showrunnerResult} status={showrunnerStatus} error={showrunnerError} />
       </main>
     </ConfigProvider>
   );

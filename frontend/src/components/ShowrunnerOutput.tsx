@@ -5,12 +5,24 @@ import { Alert, Button, Card, Tag } from "antd";
 import { createVideoTask, getVideoTask, renderEditorDemo } from "@/lib/api";
 import type { EditResult, ShowrunnerResult, Shot, VideoResult } from "@/lib/api";
 
-export function ShowrunnerOutput({ result }: { result: ShowrunnerResult }) {
+type ShowrunnerStatus = "not-started" | "generating" | "failed" | "ready";
+
+type ShowrunnerOutputProps = {
+  result: ShowrunnerResult | null;
+  status: ShowrunnerStatus;
+  error: string;
+};
+
+export function ShowrunnerOutput({ result, status, error: showrunnerError }: ShowrunnerOutputProps) {
   const [tasks, setTasks] = useState<Record<string, VideoResult>>({});
   const [busyAction, setBusyAction] = useState("");
   const [error, setError] = useState("");
   const [editResult, setEditResult] = useState<EditResult | null>(null);
-  const demoShots = result.shots.slice(0, 3);
+  const characters = arrayOrEmpty(result?.characters);
+  const scenes = arrayOrEmpty(result?.scenes);
+  const shots = resolveShots(result);
+  const warnings = arrayOrEmpty(result?.warnings);
+  const demoShots = shots.slice(0, 3);
   const allCreated = demoShots.length > 0 && demoShots.every((shot) => tasks[shot.id]);
   const allSucceeded = demoShots.length > 0 && demoShots.every((shot) => tasks[shot.id]?.status === "succeeded" && tasks[shot.id]?.video_url);
 
@@ -100,22 +112,28 @@ export function ShowrunnerOutput({ result }: { result: ShowrunnerResult }) {
           <h2>Showrunner Output</h2>
           <p>Characters, scenes, chapter breakdowns, shots, and generation prompts.</p>
         </div>
+        <ShowrunnerStatusAlert status={status} error={showrunnerError} />
         <div className="status-tags showrunner-tags">
-          <Tag>{result.characters.length} Characters</Tag>
-          <Tag>{result.scenes.length} Scenes</Tag>
-          <Tag>{result.shots.length} Shots</Tag>
-          <Tag>{result.warnings.length} Warnings</Tag>
+          <Tag>{characters.length} Characters</Tag>
+          <Tag>{scenes.length} Scenes</Tag>
+          <Tag>{shots.length} Shots</Tag>
+          <Tag>{warnings.length} Warnings</Tag>
         </div>
 
         {error ? <Alert className="error-card video-task-error" type="error" showIcon message={error} /> : null}
 
-        {result.shots.length ? (
-          <div className="video-task-list short-demo-workflow">
-            <div className="card-heading">
-              <span className="section-kicker">PHASE 6 / SHORT DEMO WORKFLOW</span>
-              <h3>Generate Short Demo</h3>
+        <div className="video-task-list short-demo-workflow">
+          <div className="card-heading">
+            <span className="section-kicker">PHASE 6 / SHORT DEMO WORKFLOW</span>
+            <h3>Short Demo Workflow</h3>
+            {demoShots.length ? (
               <p>Uses the first {demoShots.length} shots. Creating tasks may consume Wan video credits.</p>
-            </div>
+            ) : (
+              <p>No shots available for short demo</p>
+            )}
+          </div>
+          {demoShots.length ? (
+            <>
             <div className="short-demo-actions">
               <Button type="primary" disabled={allCreated || busyAction !== ""} loading={busyAction === "create"} onClick={handleCreateDemoTasks}>
                 Create 3 Video Tasks
@@ -150,15 +168,65 @@ export function ShowrunnerOutput({ result }: { result: ShowrunnerResult }) {
                 description={`Output: ${editResult.output_file}${editResult.subtitles_file ? ` | Subtitles: ${editResult.subtitles_file}` : ""}`}
               />
             ) : null}
-          </div>
-        ) : (
-          <Alert className="video-task-error" type="info" showIcon message="No shots available for short demo." />
-        )}
+            </>
+          ) : (
+            <Alert className="video-task-error" type="info" showIcon message="No shots available for short demo" />
+          )}
+        </div>
 
-        <pre className="showrunner-json">{JSON.stringify(result, null, 2)}</pre>
+        {result ? <pre className="showrunner-json">{JSON.stringify(result, null, 2)}</pre> : null}
       </Card>
     </section>
   );
+}
+
+function ShowrunnerStatusAlert({ status, error }: { status: ShowrunnerStatus; error: string }) {
+  if (status === "generating") {
+    return <Alert type="info" showIcon message="Generating showrunner assets..." />;
+  }
+  if (status === "failed") {
+    return <Alert className="error-card showrunner-error" type="error" showIcon message={`Showrunner failed: ${error || "Unknown error"}`} />;
+  }
+  if (status === "ready") {
+    return <Alert type="success" showIcon message="Showrunner ready" />;
+  }
+  return <Alert type="info" showIcon message="Not started" />;
+}
+
+function resolveShots(result: ShowrunnerResult | null): Shot[] {
+  if (Array.isArray(result?.shots) && result.shots.length > 0) {
+    return result.shots;
+  }
+
+  const shotPrompts: unknown = result?.asset_prompts?.shot_prompts;
+  if (!Array.isArray(shotPrompts)) {
+    return [];
+  }
+
+  return shotPrompts.flatMap((value, index) => {
+    if (!value || typeof value !== "object") {
+      return [];
+    }
+    const shot = value as Partial<Shot>;
+    return [{
+      id: shot.id || `shot_${index + 1}`,
+      chapter_number: shot.chapter_number ?? 0,
+      scene_id: shot.scene_id ?? "",
+      characters: arrayOrEmpty(shot.characters),
+      dialogue: arrayOrEmpty(shot.dialogue),
+      action: shot.action ?? "",
+      camera: shot.camera ?? "",
+      background: shot.background ?? "",
+      duration_hint: shot.duration_hint ?? "5s",
+      image_prompt: shot.image_prompt ?? "",
+      video_prompt: shot.video_prompt ?? shot.image_prompt ?? "",
+      audio_prompt: shot.audio_prompt ?? ""
+    }];
+  });
+}
+
+function arrayOrEmpty<T>(value: T[] | undefined): T[] {
+  return Array.isArray(value) ? value : [];
 }
 
 function videoPromptForShot(shot: Shot) {
