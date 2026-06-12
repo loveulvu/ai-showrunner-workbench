@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"ai-showrunner-workbench/internal/ai"
@@ -18,13 +19,16 @@ func GenerateShowrunner(c *gin.Context) {
 
 	client, err := ai.NewClientFromEnv()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("Showrunner failed stage=%s message=%s", showrunner.StageService, ai.RedactedDiagnostic(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"stage": showrunner.StageService, "message": err.Error(), "error": err.Error()})
 		return
 	}
 
 	result, err := showrunner.NewService(client).Generate(c.Request.Context(), input)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		stage, message := showrunner.ErrorDetails(err)
+		log.Printf("Showrunner failed stage=%s message=%s", stage, ai.RedactedDiagnostic(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"stage": stage, "message": message, "error": err.Error()})
 		return
 	}
 

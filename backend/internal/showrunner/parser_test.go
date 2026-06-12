@@ -27,6 +27,67 @@ func TestParseJSON(t *testing.T) {
 	}
 }
 
+func TestParseJSONExtractsObjectWithSurroundingText(t *testing.T) {
+	raw := `Here is the requested result:
+	{"shots":[{"shot_id":7,"chapter_number":"2","duration_seconds":6,"visual_prompt":"wide shot","subtitle":"Hello"}]}
+	This is ready for production.`
+
+	result, err := ParseJSON(raw)
+	if err != nil {
+		t.Fatalf("ParseJSON() error = %v", err)
+	}
+	shot := result.Shots[0]
+	if shot.ID != "7" || shot.ChapterNumber != 2 || shot.DurationHint != "6" {
+		t.Fatalf("shot = %#v", shot)
+	}
+	if shot.ImagePrompt != "wide shot" || shot.Dialogue.Text() != "Hello" {
+		t.Fatalf("shot compatibility fields = %#v", shot)
+	}
+}
+
+func TestParseJSONAcceptsDurationAndShotIDStringOrNumber(t *testing.T) {
+	raw := `{"shots":[
+		{"shot_id":"shot-a","chapter_number":1,"duration_seconds":"5","image_prompt":"a"},
+		{"shot_id":2,"chapter_number":"2","duration_seconds":6,"image_prompt":"b"}
+	]}`
+
+	result, err := ParseJSON(raw)
+	if err != nil {
+		t.Fatalf("ParseJSON() error = %v", err)
+	}
+	if result.Shots[0].ID != "shot-a" || result.Shots[0].DurationHint != "5" {
+		t.Fatalf("first shot = %#v", result.Shots[0])
+	}
+	if result.Shots[1].ID != "2" || result.Shots[1].ChapterNumber != 2 || result.Shots[1].DurationHint != "6" {
+		t.Fatalf("second shot = %#v", result.Shots[1])
+	}
+}
+
+func TestParseJSONAcceptsTopLevelAliasesAndFlexibleAssetPrompts(t *testing.T) {
+	raw := `{
+		"shot_list":[{"id":"shot-1","chapter_number":1,"image_prompt":"frame"}],
+		"assetPrompts":{"shot_prompts":["first prompt", "second prompt"]}
+	}`
+
+	result, err := ParseJSON(raw)
+	if err != nil {
+		t.Fatalf("ParseJSON() error = %v", err)
+	}
+	if len(result.Shots) != 1 || len(result.AssetPrompts.ShotPrompts) != 2 {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestParseJSONDoesNotFailWhenAssetPromptsHasUnexpectedShape(t *testing.T) {
+	result, err := ParseJSON(`{"shots":[{"id":"shot-1","image_prompt":"frame"}],"asset_prompts":["unexpected"]}`)
+	if err != nil {
+		t.Fatalf("ParseJSON() error = %v", err)
+	}
+	if len(result.Shots) != 1 || result.AssetPrompts.ShotPrompts == nil {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
 func TestParseJSONRejectsInvalidJSON(t *testing.T) {
 	if _, err := ParseJSON(`{"shots":`); err == nil {
 		t.Fatal("ParseJSON() error = nil, want parse error")

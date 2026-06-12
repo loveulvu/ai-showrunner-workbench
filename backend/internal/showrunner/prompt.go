@@ -54,3 +54,14 @@ character_prompts, background_prompts, shot_prompts, voice_prompts
 Input JSON:
 %s`, string(payload))
 }
+
+func BuildRepairPrompt(raw string, reason string) string {
+	return fmt.Sprintf(`Repair the following animation showrunner output.
+Return one strict JSON object only, with no Markdown fences, explanations, YAML, or comments.
+Preserve all usable data. Ensure the top-level "shots" field is a non-empty JSON array.
+Normalize identifiers and chapter numbers to strings or numbers accepted by JSON.
+The previous output failed because: %s
+
+Previous output:
+%s`, reason, raw)
+}

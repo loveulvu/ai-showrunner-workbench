@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"ai-showrunner-workbench/internal/showrunner"
 )
 
 func TestRealClientCallChatContentSendsOpenAICompatibleRequest(t *testing.T) {
@@ -237,6 +239,33 @@ func TestRealClientDoesNotRetryEOFReadingHTTPConfigurationError(t *testing.T) {
 	}
 }
 
+func TestRealClientRepairsInvalidShowrunnerOutputOnce(t *testing.T) {
+	var attempts atomic.Int32
+	client := NewRealClient(Config{
+		APIKey:         "test-key",
+		BaseURL:        defaultQwenBaseURL,
+		Model:          defaultQwenModel,
+		TimeoutSeconds: 2,
+	})
+	client.httpClient.Transport = roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		if attempts.Add(1) == 1 {
+			return chatContentResponse("not JSON"), nil
+		}
+		return chatContentResponse(`{"shots":[{"shot_id":1,"chapter_number":"1","visual_prompt":"frame"}]}`), nil
+	})
+
+	result, err := client.GenerateShowrunner(context.Background(), showrunner.GenerateInput{})
+	if err != nil {
+		t.Fatalf("GenerateShowrunner() error = %v", err)
+	}
+	if len(result.Shots) != 1 || result.Shots[0].ID != "1" {
+		t.Fatalf("shots = %#v", result.Shots)
+	}
+	if got := attempts.Load(); got != 2 {
+		t.Fatalf("attempts = %d, want initial request plus one repair", got)
+	}
+}
+
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -249,6 +278,13 @@ func chatResponse(status int, body string) *http.Response {
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Header:     make(http.Header),
 	}
+}
+
+func chatContentResponse(content string) *http.Response {
+	body, _ := json.Marshal(map[string]any{
+		"choices": []any{map[string]any{"message": map[string]any{"role": "assistant", "content": content}}},
+	})
+	return chatResponse(http.StatusOK, string(body))
 }
 
 type failingReadCloser struct {

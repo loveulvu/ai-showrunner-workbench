@@ -1,19 +1,75 @@
 package showrunner
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"strings"
 )
 
 func ParseJSON(raw string) (ShowrunnerResult, error) {
 	var result ShowrunnerResult
-	text := stripJSONFence(raw)
-	if err := json.Unmarshal([]byte(text), &result); err != nil {
-		return result, fmt.Errorf("parse showrunner JSON: %w", err)
+	text, err := ExtractJSONObject(raw)
+	if err != nil {
+		return result, &StageError{Stage: StageExtractJSON, Message: "could not extract a valid JSON object from showrunner output", Err: err}
+	}
+	compatible, err := normalizeTopLevelFields([]byte(text))
+	if err != nil {
+		return result, &StageError{Stage: StageParseJSON, Message: "could not normalize showrunner JSON fields", Err: err}
+	}
+	if err := json.Unmarshal(compatible, &result); err != nil {
+		return result, &StageError{Stage: StageParseJSON, Message: "could not parse showrunner JSON fields", Err: err}
 	}
 	normalizeResult(&result)
 	return result, nil
+}
+
+func normalizeTopLevelFields(data []byte) ([]byte, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil, err
+	}
+
+	aliases := map[string][]string{
+		"characters":    {"character_profiles"},
+		"scenes":        {"scene_profiles"},
+		"chapters":      {"chapter_breakdowns"},
+		"shots":         {"shot_list", "storyboard"},
+		"asset_prompts": {"assetPrompts"},
+	}
+	for canonical, candidates := range aliases {
+		if _, exists := fields[canonical]; exists {
+			continue
+		}
+		for _, alias := range candidates {
+			if value, exists := fields[alias]; exists {
+				fields[canonical] = value
+				break
+			}
+		}
+	}
+	return json.Marshal(fields)
+}
+
+func ExtractJSONObject(raw string) (string, error) {
+	data := []byte(raw)
+	for index, value := range data {
+		if value != '{' {
+			continue
+		}
+
+		decoder := json.NewDecoder(bytes.NewReader(data[index:]))
+		var object map[string]json.RawMessage
+		if err := decoder.Decode(&object); err != nil || object == nil {
+			continue
+		}
+
+		var rawObject json.RawMessage
+		decoder = json.NewDecoder(bytes.NewReader(data[index:]))
+		if err := decoder.Decode(&rawObject); err == nil {
+			return string(rawObject), nil
+		}
+	}
+	return "", fmt.Errorf("no valid JSON object found")
 }
 
 func normalizeResult(result *ShowrunnerResult) {
@@ -87,18 +143,4 @@ func normalizeFlexibleList(list *FlexibleStringList) {
 	if *list == nil {
 		*list = FlexibleStringList{}
 	}
-}
-
-func stripJSONFence(raw string) string {
-	text := strings.TrimSpace(raw)
-	if !strings.HasPrefix(text, "```") {
-		return text
-	}
-	if newline := strings.IndexByte(text, '\n'); newline >= 0 {
-		text = text[newline+1:]
-	}
-	if end := strings.LastIndex(text, "```"); end >= 0 {
-		text = text[:end]
-	}
-	return strings.TrimSpace(text)
 }

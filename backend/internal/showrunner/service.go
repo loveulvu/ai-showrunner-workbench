@@ -20,13 +20,16 @@ func NewService(client Client) *Service {
 func (s *Service) Generate(ctx context.Context, input GenerateInput) (ShowrunnerResult, error) {
 	result, err := s.client.GenerateShowrunner(ctx, input)
 	if err != nil {
-		return result, err
+		if _, ok := err.(*StageError); ok {
+			return result, err
+		}
+		return result, &StageError{Stage: StageService, Message: "showrunner generation service failed", Err: err}
 	}
 
 	validation := Validate(result)
 	result.Warnings = FlexibleStringList(validation.Warnings)
 	if !validation.Passed {
-		return result, fmt.Errorf("showrunner validation failed: %v", validation.Errors)
+		return result, &StageError{Stage: StageValidate, Message: fmt.Sprintf("showrunner validation failed: %v", validation.Errors)}
 	}
 	return result, nil
 }

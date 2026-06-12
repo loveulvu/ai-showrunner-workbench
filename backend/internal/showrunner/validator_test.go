@@ -27,22 +27,29 @@ func TestValidateRequiresCoreAssetsAndShotFields(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsInvalidShot(t *testing.T) {
+func TestValidateAllowsPartialAssetsAndShotFieldsWithWarnings(t *testing.T) {
 	result := ShowrunnerResult{
-		Characters: []CharacterProfile{{ID: "char_1"}},
-		Scenes:     []SceneProfile{{ID: "scene_1"}},
-		Chapters:   []ChapterBreakdown{{ChapterNumber: 1}},
-		Shots:      []Shot{{}},
+		Shots: []Shot{{}},
 	}
 
 	validation := Validate(result)
+	if !validation.Passed {
+		t.Fatalf("Validate() passed = false, errors = %v", validation.Errors)
+	}
+	for _, expected := range []string{"characters is empty", "scenes is empty", "chapters is empty", "image_prompt is empty"} {
+		if !containsSubstring(validation.Warnings, expected) {
+			t.Fatalf("warnings = %v, want substring %q", validation.Warnings, expected)
+		}
+	}
+}
+
+func TestValidateFailsOnlyWhenShotsAreEmpty(t *testing.T) {
+	validation := Validate(ShowrunnerResult{})
 	if validation.Passed {
 		t.Fatal("Validate() passed = true, want false")
 	}
-	for _, expected := range []string{"id is required", "chapter_number must be positive", "must contain action or dialogue", "image_prompt is required"} {
-		if !containsSubstring(validation.Errors, expected) {
-			t.Fatalf("errors = %v, want substring %q", validation.Errors, expected)
-		}
+	if len(validation.Errors) != 1 || !containsSubstring(validation.Errors, "shots must contain at least one shot") {
+		t.Fatalf("errors = %v", validation.Errors)
 	}
 }
 

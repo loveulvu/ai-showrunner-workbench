@@ -101,9 +101,54 @@ func (c *RealClient) GenerateScreenplay(ctx context.Context, bible story.StoryBi
 func (c *RealClient) GenerateShowrunner(ctx context.Context, input showrunner.GenerateInput) (showrunner.ShowrunnerResult, error) {
 	raw, err := c.callChatContent(ctx, "generate showrunner assets", showrunner.BuildPrompt(input))
 	if err != nil {
-		return showrunner.ShowrunnerResult{}, err
+		return showrunner.ShowrunnerResult{}, &showrunner.StageError{Stage: showrunner.StageService, Message: "Qwen showrunner request failed", Err: err}
 	}
-	return showrunner.ParseJSON(raw)
+
+	result, stageErr := parseAndValidateShowrunner(raw)
+	if stageErr == nil {
+		return result, nil
+	}
+	c.logShowrunnerFailure(stageErr, raw)
+
+	log.Printf("LLM generate showrunner assets %s failed; starting one repair request: %s", stageErr.Stage, stageErr.Message)
+	repairRaw, err := c.callChatContent(ctx, "generate showrunner assets repair", showrunner.BuildRepairPrompt(raw, stageErr.Error()))
+	if err != nil {
+		return result, &showrunner.StageError{Stage: stageErr.Stage, Message: "showrunner repair request failed", Err: err}
+	}
+
+	repaired, repairErr := parseAndValidateShowrunner(repairRaw)
+	if repairErr != nil {
+		c.logShowrunnerFailure(repairErr, repairRaw)
+		return repaired, &showrunner.StageError{Stage: repairErr.Stage, Message: "showrunner repair output failed: " + repairErr.Message, Err: repairErr.Err}
+	}
+	return repaired, nil
+}
+
+func parseAndValidateShowrunner(raw string) (showrunner.ShowrunnerResult, *showrunner.StageError) {
+	result, err := showrunner.ParseJSON(raw)
+	if err != nil {
+		var stageErr *showrunner.StageError
+		if errors.As(err, &stageErr) {
+			return result, stageErr
+		}
+		return result, &showrunner.StageError{Stage: showrunner.StageParseJSON, Message: "could not parse showrunner output", Err: err}
+	}
+
+	validation := showrunner.Validate(result)
+	result.Warnings = showrunner.FlexibleStringList(validation.Warnings)
+	if !validation.Passed {
+		return result, &showrunner.StageError{Stage: showrunner.StageValidate, Message: strings.Join(validation.Errors, "; ")}
+	}
+	return result, nil
+}
+
+func (c *RealClient) logShowrunnerFailure(stageErr *showrunner.StageError, raw string) {
+	path, err := showrunner.SaveFailedRaw(raw, stageErr.Stage)
+	if err != nil {
+		log.Printf("Showrunner failed stage=%s message=%s; raw debug save failed: %v", stageErr.Stage, stageErr.Message, err)
+		return
+	}
+	log.Printf("Showrunner failed stage=%s message=%s raw_debug=%s", stageErr.Stage, stageErr.Message, path)
 }
 
 func (c *RealClient) CheckFidelity(ctx context.Context, current screenplay.Screenplay, bible story.StoryBible, analyses []analysis.ChapterAnalysis) (fidelity.FidelityResult, error) {

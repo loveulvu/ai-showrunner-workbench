@@ -286,7 +286,9 @@ export async function generateShowrunner(
 
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(data?.error ?? "Showrunner generation failed");
+    const stage = data?.stage ? `stage: ${data.stage}` : "stage: service";
+    const message = data?.message ?? data?.error ?? "Showrunner generation failed";
+    throw new Error(`${stage} | message: ${message}`);
   }
 
   return data as ShowrunnerResult;

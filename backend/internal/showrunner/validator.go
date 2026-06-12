@@ -19,13 +19,13 @@ func Validate(result ShowrunnerResult) ValidationResult {
 	}
 
 	if len(result.Characters) == 0 {
-		validation.Errors = append(validation.Errors, "characters must contain at least one character")
+		validation.Warnings = append(validation.Warnings, "characters is empty")
 	}
 	if len(result.Scenes) == 0 {
-		validation.Errors = append(validation.Errors, "scenes must contain at least one scene")
+		validation.Warnings = append(validation.Warnings, "scenes is empty")
 	}
 	if len(result.Chapters) == 0 {
-		validation.Errors = append(validation.Errors, "chapters must contain at least one chapter breakdown")
+		validation.Warnings = append(validation.Warnings, "chapters is empty")
 	}
 	if len(result.Shots) == 0 {
 		validation.Errors = append(validation.Errors, "shots must contain at least one shot")
@@ -34,16 +34,16 @@ func Validate(result ShowrunnerResult) ValidationResult {
 	for index, shot := range result.Shots {
 		prefix := fmt.Sprintf("shots[%d]", index)
 		if strings.TrimSpace(shot.ID) == "" {
-			validation.Errors = append(validation.Errors, prefix+".id is required")
+			validation.Warnings = append(validation.Warnings, prefix+".id is empty")
 		}
 		if shot.ChapterNumber <= 0 {
-			validation.Errors = append(validation.Errors, prefix+".chapter_number must be positive")
+			validation.Warnings = append(validation.Warnings, prefix+".chapter_number is not positive")
 		}
 		if strings.TrimSpace(shot.Action) == "" && strings.TrimSpace(shot.Dialogue.Text()) == "" {
-			validation.Errors = append(validation.Errors, prefix+" must contain action or dialogue")
+			validation.Warnings = append(validation.Warnings, prefix+" has no action, dialogue, or subtitle")
 		}
 		if strings.TrimSpace(shot.ImagePrompt) == "" {
-			validation.Errors = append(validation.Errors, prefix+".image_prompt is required")
+			validation.Warnings = append(validation.Warnings, prefix+".image_prompt is empty")
 		}
 		if strings.TrimSpace(shot.VideoPrompt) == "" {
 			validation.Warnings = append(validation.Warnings, prefix+".video_prompt is empty")
