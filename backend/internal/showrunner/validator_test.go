@@ -43,6 +43,18 @@ func TestValidateAllowsPartialAssetsAndShotFieldsWithWarnings(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsDemoWithFewCharactersAndScenes(t *testing.T) {
+	result := ShowrunnerResult{
+		Mode:       ShowrunnerModeDemo,
+		Characters: []CharacterProfile{{ID: "lead"}},
+		Scenes:     []SceneProfile{{ID: "scene_1"}},
+		Shots:      []Shot{{ID: "shot_1", Action: "Lead enters."}},
+	}
+	if validation := Validate(result); !validation.Passed {
+		t.Fatalf("demo validation errors = %v", validation.Errors)
+	}
+}
+
 func TestValidateFailsOnlyWhenShotsAreEmpty(t *testing.T) {
 	validation := Validate(ShowrunnerResult{})
 	if validation.Passed {

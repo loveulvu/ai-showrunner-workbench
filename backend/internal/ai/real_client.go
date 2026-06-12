@@ -243,7 +243,7 @@ func (c *RealClient) callChatContent(ctx context.Context, step string, prompt st
 
 		resp, err = c.httpClient.Do(req)
 		if err != nil {
-			if c.shouldRetryNetworkError(ctx, err, attempt) {
+			if c.shouldRetryNetworkError(ctx, step, err, attempt) {
 				if waitErr := c.waitBeforeRetry(ctx, step, attempt, err); waitErr != nil {
 					return c.failLLMCall(step, "call chat completions", start, waitErr)
 				}
@@ -255,13 +255,20 @@ func (c *RealClient) callChatContent(ctx context.Context, step string, prompt st
 		body, err = io.ReadAll(io.LimitReader(resp.Body, 1_000_000))
 		_ = resp.Body.Close()
 		if err != nil {
-			if !isClientErrorStatus(resp.StatusCode) && c.shouldRetryNetworkError(ctx, err, attempt) {
+			if !isClientErrorStatus(resp.StatusCode) && c.shouldRetryNetworkError(ctx, step, err, attempt) {
 				if waitErr := c.waitBeforeRetry(ctx, step, attempt, err); waitErr != nil {
 					return c.failLLMCall(step, "read response", start, waitErr)
 				}
 				continue
 			}
 			return c.failLLMCall(step, "read response", start, err)
+		}
+		if c.shouldRetryHTTPStatus(ctx, resp.StatusCode, attempt) {
+			statusErr := fmt.Errorf("chat completions returned retryable status %d", resp.StatusCode)
+			if waitErr := c.waitBeforeRetry(ctx, step, attempt, statusErr); waitErr != nil {
+				return c.failLLMCall(step, "call chat completions", start, waitErr)
+			}
+			continue
 		}
 		break
 	}
@@ -296,8 +303,21 @@ func (c *RealClient) callChatContent(ctx context.Context, step string, prompt st
 	return content, nil
 }
 
-func (c *RealClient) shouldRetryNetworkError(ctx context.Context, err error, attempt int) bool {
+func (c *RealClient) shouldRetryNetworkError(ctx context.Context, step string, err error, attempt int) bool {
+	if isShowrunnerStep(step) && isAwaitingHeadersTimeout(err) {
+		return false
+	}
 	return attempt < len(c.retryDelays) && ctx.Err() == nil && isTemporaryNetworkError(err)
+}
+
+func (c *RealClient) shouldRetryHTTPStatus(ctx context.Context, statusCode int, attempt int) bool {
+	if ctx.Err() != nil || attempt >= len(c.retryDelays) {
+		return false
+	}
+	return statusCode == http.StatusTooManyRequests ||
+		statusCode == http.StatusBadGateway ||
+		statusCode == http.StatusServiceUnavailable ||
+		statusCode == http.StatusGatewayTimeout
 }
 
 func (c *RealClient) waitBeforeRetry(ctx context.Context, step string, attempt int, err error) error {
@@ -319,10 +339,21 @@ func (c *RealClient) failLLMCall(step string, phase string, start time.Time, err
 	log.Printf("LLM %s failed in %.1fs: %s", step, elapsed.Seconds(), phase)
 
 	if isTimeoutError(err) {
+		if isShowrunnerStep(step) {
+			return "", fmt.Errorf("%s: %s timeout after %.1fs (timeout seconds=%d): %w; reduce Showrunner input size before increasing AI_TIMEOUT_SECONDS", step, phase, elapsed.Seconds(), int(c.timeout.Seconds()), err)
+		}
 		return "", fmt.Errorf("%s: %s timeout after %.1fs (timeout seconds=%d): %w; increase AI_TIMEOUT_SECONDS or reduce input size", step, phase, elapsed.Seconds(), int(c.timeout.Seconds()), err)
 	}
 
 	return "", fmt.Errorf("%s: %s failed after %.1fs: %w", step, phase, elapsed.Seconds(), err)
+}
+
+func isShowrunnerStep(step string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(step)), "generate showrunner assets")
+}
+
+func isAwaitingHeadersTimeout(err error) bool {
+	return isTimeoutError(err) && strings.Contains(strings.ToLower(err.Error()), "awaiting headers")
 }
 
 func isTimeoutError(err error) bool {

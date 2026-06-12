@@ -6,12 +6,20 @@ import (
 )
 
 func BuildPrompt(input GenerateInput) string {
+	input = PrepareInput(input)
 	if input.Style == "" {
 		input.Style = "cinematic xianxia short drama"
 	}
-	payload, _ := json.MarshalIndent(input, "", "  ")
+	payload, _ := json.Marshal(input)
+	modeRequirements := fullModeRequirements
+	if input.Mode == ShowrunnerModeDemo {
+		modeRequirements = demoModeRequirements
+	}
 	return fmt.Sprintf(`You are a storyboard director and video prompt engineer for cinematic short drama.
 Generate concise, structured production-planning assets optimized for Wan video generation.
+
+Mode: %s
+%s
 
 Return one strict JSON object with exactly these top-level fields:
 - characters
@@ -63,8 +71,18 @@ Required asset_prompts fields:
 character_prompts, background_prompts, shot_prompts, voice_prompts
 
 Input JSON:
-%s`, string(payload))
+%s`, input.Mode, modeRequirements, string(payload))
 }
+
+const demoModeRequirements = `Demo mode hard limits:
+- Generate exactly 3 shots only (maximum: 3 shots). Do not generate a full-series storyboard.
+- All 3 shots must be one continuous scene at the same location and time.
+- Shot 1 establishes the location and character positions; shot 2 is the conflict or key action; shot 3 is the reaction or result.
+- Generate 2-4 main characters, at most 2 scenes, at most 1 chapter breakdown, and at most 5 warnings.
+- Do not generate multi-chapter assets or long explanations.
+- Keep each video_prompt concise, clear, and stable while retaining continuity details and negative_prompt.`
+
+const fullModeRequirements = `Full mode may generate broader production assets while keeping the output concise.`
 
 func BuildRepairPrompt(raw string, reason string) string {
 	return fmt.Sprintf(`Repair the following animation showrunner output.

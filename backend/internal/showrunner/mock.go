@@ -4,6 +4,7 @@ const defaultVideoStyle = "cinematic xianxia short drama"
 const defaultNegativePrompt = "blurry, distorted face, inconsistent character, different outfit, extra limbs, bad hands, text, subtitles, watermark, logo, low quality, jump cut, flickering, deformed body"
 
 func MockResult(input GenerateInput) ShowrunnerResult {
+	input = PrepareInput(input)
 	title := input.Screenplay.Title
 	if title == "" {
 		title = input.StoryBible.Title
@@ -80,5 +81,6 @@ func MockResult(input GenerateInput) ShowrunnerResult {
 			VoicePrompts:      map[string]string{"char_lead": "calm voice with restrained urgency", "char_partner": "grounded supportive voice"},
 		},
 		Warnings: FlexibleStringList{},
+		Mode:     input.Mode,
 	}
 }

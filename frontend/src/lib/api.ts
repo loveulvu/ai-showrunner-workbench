@@ -218,7 +218,10 @@ export type ShowrunnerResult = {
   shots: Shot[];
   asset_prompts: AssetPromptSet;
   warnings: string[];
+  mode: ShowrunnerMode;
 };
+
+export type ShowrunnerMode = "demo" | "full";
 
 export type VideoTaskStatus = "pending" | "running" | "succeeded" | "failed";
 
@@ -308,7 +311,8 @@ export async function generateShowrunner(
         story_bible: result.story_bible,
         chapters: result.chapter_analyses,
         style,
-        language
+        language,
+        mode: "demo"
       })
     });
   } catch {

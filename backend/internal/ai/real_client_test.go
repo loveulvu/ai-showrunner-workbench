@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -191,6 +192,53 @@ func TestRealClientRetriesTemporaryNetworkErrorsTwice(t *testing.T) {
 	}
 }
 
+func TestRealClientDoesNotRetryShowrunnerAwaitingHeadersTimeout(t *testing.T) {
+	var attempts atomic.Int32
+	client := NewRealClient(Config{
+		APIKey:         "test-key",
+		BaseURL:        defaultQwenBaseURL,
+		Model:          defaultQwenModel,
+		TimeoutSeconds: 2,
+	})
+	client.retryDelays = []time.Duration{0, 0}
+	client.httpClient.Transport = roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		attempts.Add(1)
+		return nil, timeoutError{message: "Client.Timeout exceeded while awaiting headers"}
+	})
+
+	_, err := client.callChatContent(context.Background(), "generate showrunner assets", "hello")
+	if err == nil || !strings.Contains(err.Error(), "reduce Showrunner input size") {
+		t.Fatalf("callChatContent() error = %v, want Showrunner input size guidance", err)
+	}
+	if got := attempts.Load(); got != 1 {
+		t.Fatalf("attempts = %d, want 1", got)
+	}
+}
+
+func TestRealClientRetriesRetryableHTTPStatus(t *testing.T) {
+	var attempts atomic.Int32
+	client := NewRealClient(Config{
+		APIKey:         "test-key",
+		BaseURL:        defaultQwenBaseURL,
+		Model:          defaultQwenModel,
+		TimeoutSeconds: 2,
+	})
+	client.retryDelays = []time.Duration{0, 0}
+	client.httpClient.Transport = roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		if attempts.Add(1) == 1 {
+			return chatResponse(http.StatusServiceUnavailable, `{"error":"temporary"}`), nil
+		}
+		return chatContentResponse("generated text"), nil
+	})
+
+	if _, err := client.callChatContent(context.Background(), "test request", "hello"); err != nil {
+		t.Fatalf("callChatContent() error = %v", err)
+	}
+	if got := attempts.Load(); got != 2 {
+		t.Fatalf("attempts = %d, want 2", got)
+	}
+}
+
 func TestRealClientDoesNotRetryHTTPConfigurationErrors(t *testing.T) {
 	var attempts atomic.Int32
 	client := NewRealClient(Config{
@@ -290,6 +338,15 @@ func chatContentResponse(content string) *http.Response {
 type failingReadCloser struct {
 	io.Reader
 }
+
+type timeoutError struct {
+	message string
+}
+
+func (e timeoutError) Error() string { return e.message }
+func (timeoutError) Timeout() bool   { return true }
+func (timeoutError) Temporary() bool { return true }
+func (e timeoutError) Unwrap() error { return errors.New(e.message) }
 
 func (failingReadCloser) Read([]byte) (int, error) {
 	return 0, io.ErrUnexpectedEOF

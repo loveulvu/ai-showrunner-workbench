@@ -16,6 +16,7 @@ func GenerateShowrunner(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json body"})
 		return
 	}
+	input.Mode = showrunner.NormalizeMode(input.Mode)
 
 	client, err := ai.NewClientFromEnv()
 	if err != nil {

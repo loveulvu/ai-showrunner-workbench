@@ -265,7 +265,15 @@ type ShowrunnerResult struct {
 	Shots        []Shot             `json:"shots"`
 	AssetPrompts AssetPromptSet     `json:"asset_prompts"`
 	Warnings     FlexibleStringList `json:"warnings"`
+	Mode         ShowrunnerMode     `json:"mode"`
 }
+
+type ShowrunnerMode string
+
+const (
+	ShowrunnerModeDemo ShowrunnerMode = "demo"
+	ShowrunnerModeFull ShowrunnerMode = "full"
+)
 
 type GenerateInput struct {
 	Screenplay screenplay.Screenplay      `json:"screenplay"`
@@ -273,4 +281,5 @@ type GenerateInput struct {
 	Chapters   []analysis.ChapterAnalysis `json:"chapters"`
 	Style      string                     `json:"style"`
 	Language   string                     `json:"language"`
+	Mode       ShowrunnerMode             `json:"mode"`
 }

@@ -35,6 +35,9 @@ func TestGenerateShowrunnerMockEndpoint(t *testing.T) {
 			t.Fatalf("body missing %s: %s", expected, recorder.Body.String())
 		}
 	}
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"mode":"demo"`)) {
+		t.Fatalf("body does not default to demo mode: %s", recorder.Body.String())
+	}
 }
 
 func TestGenerateShowrunnerReturnsStructuredServiceError(t *testing.T) {

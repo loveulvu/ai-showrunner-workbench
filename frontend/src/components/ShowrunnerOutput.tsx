@@ -148,6 +148,9 @@ export function ShowrunnerOutput({ result, status, error: showrunnerError, onRet
         </div>
         <ShowrunnerStatusAlert status={status} error={showrunnerError} onRetry={onRetry} />
         <div className="status-tags showrunner-tags">
+          <Tag>Mode: {result?.mode ?? "demo"}</Tag>
+          <Tag>Demo shots: 3</Tag>
+          <Tag>Full asset generation deferred</Tag>
           <Tag>{characters.length} Characters</Tag>
           <Tag>{scenes.length} Scenes</Tag>
           <Tag>{shots.length} Shots</Tag>

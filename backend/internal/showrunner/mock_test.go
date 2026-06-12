@@ -21,6 +21,9 @@ func TestMockResultProvidesDisplayableAssets(t *testing.T) {
 	if len(result.Shots) < 3 {
 		t.Fatalf("shots = %d, want at least 3", len(result.Shots))
 	}
+	if result.Mode != ShowrunnerModeDemo || len(result.Shots) != 3 {
+		t.Fatalf("demo mock mode/shots = %q/%d, want demo/3", result.Mode, len(result.Shots))
+	}
 
 	withVideo := 0
 	withAudio := 0
