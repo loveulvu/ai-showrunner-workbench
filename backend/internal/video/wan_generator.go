@@ -4,9 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
+	"net"
 	"net/http"
+	"net/url"
+	"os"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -14,10 +20,11 @@ import (
 const wanResponseLimit = 1_000_000
 
 type WanVideoGenerator struct {
-	config     ProviderConfig
-	store      VideoTaskStore
-	apiKey     string
-	httpClient *http.Client
+	config      ProviderConfig
+	store       VideoTaskStore
+	apiKey      string
+	httpClient  *http.Client
+	retryDelays []time.Duration
 }
 
 type wanCreateRequest struct {
@@ -52,31 +59,32 @@ type wanOutput struct {
 
 func NewWanVideoGenerator(config ProviderConfig, store VideoTaskStore, apiKey string, client *http.Client) *WanVideoGenerator {
 	return &WanVideoGenerator{
-		config:     config,
-		store:      store,
-		apiKey:     apiKey,
-		httpClient: client,
+		config:      config,
+		store:       store,
+		apiKey:      apiKey,
+		httpClient:  client,
+		retryDelays: []time.Duration{time.Second, 2 * time.Second},
 	}
 }
 
 func (g *WanVideoGenerator) CreateTask(ctx context.Context, prompt VideoPrompt) (string, error) {
 	if strings.TrimSpace(prompt.ShotID) == "" {
-		return "", fmt.Errorf("shot_id is required")
+		return "", &Error{Kind: ErrorKindRequest, Message: "shot_id is required"}
 	}
 	if strings.TrimSpace(prompt.Prompt) == "" {
-		return "", fmt.Errorf("prompt is required")
+		return "", &Error{Kind: ErrorKindRequest, Message: "prompt is required"}
 	}
 
 	requestBody := buildWanCreateRequest(g.config, prompt)
 	var response wanResponse
-	if err := g.doJSON(ctx, http.MethodPost, "/services/aigc/video-generation/video-synthesis", requestBody, true, &response); err != nil {
+	if err := g.doCreateJSONWithRetry(ctx, requestBody, &response); err != nil {
 		return "", err
 	}
 	if response.Code != "" {
-		return "", g.redactError(fmt.Errorf("wan create task failed: %s", wanErrorMessage(response.Code, response.Message)))
+		return "", g.upstreamError("Wan rejected video task creation", fmt.Errorf("%s", wanErrorMessage(response.Code, response.Message)), false)
 	}
 	if strings.TrimSpace(response.Output.TaskID) == "" {
-		return "", fmt.Errorf("wan create task response missing output.task_id")
+		return "", g.upstreamError("Wan response missing task_id", nil, false)
 	}
 
 	now := time.Now().UTC()
@@ -103,14 +111,43 @@ func (g *WanVideoGenerator) CreateTask(ctx context.Context, prompt VideoPrompt) 
 	return task.TaskID, nil
 }
 
+func (g *WanVideoGenerator) doCreateJSONWithRetry(ctx context.Context, body any, target *wanResponse) error {
+	for attempt := 0; ; attempt++ {
+		err := g.doJSON(ctx, http.MethodPost, "/services/aigc/video-generation/video-synthesis", body, true, target)
+		if err == nil || strings.TrimSpace(target.Output.TaskID) != "" {
+			return err
+		}
+		if attempt >= len(g.retryDelays) || !isTemporaryWanNetworkError(err) {
+			return err
+		}
+
+		delay := g.retryDelays[attempt]
+		log.Printf("Wan create task temporary network error; retrying attempt %d/%d in %s", attempt+1, len(g.retryDelays), delay)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return g.upstreamError("Wan task creation canceled while waiting to retry", ctx.Err(), false)
+		case <-timer.C:
+		}
+	}
+}
+
 func (g *WanVideoGenerator) GetTask(ctx context.Context, taskID string) (*VideoResult, error) {
 	task, err := g.store.Get(ctx, taskID)
-	if err != nil {
+	taskWasCached := err == nil
+	if err != nil && !errors.Is(err, ErrTaskNotFound) {
 		return nil, err
+	}
+	if errors.Is(err, ErrTaskNotFound) {
+		task = &VideoTask{TaskID: taskID, Provider: "wan", Model: g.config.Model}
 	}
 
 	var response wanResponse
 	if err := g.doJSON(ctx, http.MethodGet, "/tasks/"+taskID, nil, false, &response); err != nil {
+		if taskWasCached && task.Status == StatusSucceeded && strings.TrimSpace(task.VideoURL) != "" {
+			return videoResultFromTask(task), nil
+		}
 		return nil, err
 	}
 
@@ -123,17 +160,27 @@ func (g *WanVideoGenerator) GetTask(ctx context.Context, taskID string) (*VideoR
 		task.ErrorMessage = g.redactText(wanErrorMessage(response.Code, response.Message))
 	}
 	task.UpdatedAt = time.Now().UTC()
-	if err := g.store.Update(ctx, task); err != nil {
+	if taskWasCached {
+		err = g.store.Update(ctx, task)
+	} else {
+		task.CreatedAt = task.UpdatedAt
+		err = g.store.Save(ctx, task)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("update wan video task: %w", err)
 	}
 
+	return videoResultFromTask(task), nil
+}
+
+func videoResultFromTask(task *VideoTask) *VideoResult {
 	return &VideoResult{
 		TaskID:       task.TaskID,
 		ShotID:       task.ShotID,
 		Status:       task.Status,
 		VideoURL:     task.VideoURL,
 		ErrorMessage: task.ErrorMessage,
-	}, nil
+	}
 }
 
 func buildWanCreateRequest(config ProviderConfig, prompt VideoPrompt) wanCreateRequest {
@@ -209,7 +256,7 @@ func (g *WanVideoGenerator) doJSON(ctx context.Context, method string, path stri
 	endpoint := strings.TrimRight(strings.TrimSpace(g.config.BaseURL), "/") + path
 	request, err := http.NewRequestWithContext(ctx, method, endpoint, reader)
 	if err != nil {
-		return g.redactError(fmt.Errorf("create Wan request: %w", err))
+		return g.upstreamError("Could not create Wan video service request", err, false)
 	}
 	request.Header.Set("Authorization", "Bearer "+g.apiKey)
 	if body != nil {
@@ -221,36 +268,81 @@ func (g *WanVideoGenerator) doJSON(ctx context.Context, method string, path stri
 
 	response, err := g.httpClient.Do(request)
 	if err != nil {
-		return g.redactError(fmt.Errorf("call Wan API: %w", err))
+		return g.upstreamError("Could not reach Wan video service", err, true)
 	}
 	defer response.Body.Close()
 
 	responseBody, err := io.ReadAll(io.LimitReader(response.Body, wanResponseLimit))
 	if err != nil {
-		return fmt.Errorf("read Wan response: %w", err)
+		if json.Unmarshal(responseBody, target) == nil {
+			if wanTarget, ok := target.(*wanResponse); ok && strings.TrimSpace(wanTarget.Output.TaskID) != "" {
+				return nil
+			}
+		}
+		return g.upstreamError("Could not read Wan video service response", err, true)
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return g.redactError(fmt.Errorf("Wan API returned status %d: %s", response.StatusCode, summarizeWanResponse(responseBody)))
+		return g.upstreamError(fmt.Sprintf("Wan video service returned status %d", response.StatusCode), fmt.Errorf("%s", summarizeWanResponse(responseBody)), false)
 	}
 	if err := json.Unmarshal(responseBody, target); err != nil {
-		return fmt.Errorf("parse Wan response: %w", err)
+		return g.upstreamError("Could not parse Wan video service response", err, false)
 	}
 	return nil
 }
 
-func (g *WanVideoGenerator) redactError(err error) error {
-	if err == nil {
-		return err
+func (g *WanVideoGenerator) upstreamError(message string, err error, retryable bool) error {
+	if err != nil {
+		log.Printf("Wan upstream error: %s", g.redactText(err.Error()))
 	}
-	return fmt.Errorf("%s", g.redactText(err.Error()))
+	return &Error{Kind: ErrorKindUpstream, Message: message, Err: err, Retryable: retryable}
 }
 
 func (g *WanVideoGenerator) redactText(value string) string {
-	if g.apiKey == "" {
-		return value
+	for _, sensitive := range []string{g.apiKey, g.config.BaseURL} {
+		if strings.TrimSpace(sensitive) != "" {
+			value = strings.ReplaceAll(value, sensitive, "<redacted>")
+		}
 	}
-	return strings.ReplaceAll(value, g.apiKey, "<redacted>")
+	for _, name := range []string{"HTTP_PROXY", "HTTPS_PROXY"} {
+		proxy := strings.TrimSpace(os.Getenv(name))
+		if proxy == "" {
+			continue
+		}
+		value = strings.ReplaceAll(value, proxy, "<redacted-proxy>")
+		if parsed, err := url.Parse(proxy); err == nil && parsed.Host != "" {
+			value = strings.ReplaceAll(value, parsed.Host, "<redacted-proxy>")
+		}
+	}
+	return wanURLPattern.ReplaceAllString(value, "<redacted-url>")
 }
+
+func isTemporaryWanNetworkError(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) {
+		return false
+	}
+	var videoErr *Error
+	if errors.As(err, &videoErr) {
+		return videoErr.Retryable
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
+		return true
+	}
+
+	message := strings.ToLower(err.Error())
+	for _, fragment := range []string{"connection reset", "forcibly closed", "timeout", "unexpected eof", "temporary network error"} {
+		if strings.Contains(message, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
+var wanURLPattern = regexp.MustCompile(`https?://[^\s"']+`)
 
 func summarizeWanResponse(value []byte) string {
 	text := strings.TrimSpace(string(value))

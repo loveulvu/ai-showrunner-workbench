@@ -304,7 +304,7 @@ export async function createVideoTask(prompt: VideoPrompt): Promise<string> {
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(data?.error ?? "Create mock video task failed");
+    throw new Error(data?.message ?? data?.error ?? "Create video task failed");
   }
   return data.task_id as string;
 }

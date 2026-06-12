@@ -6,6 +6,12 @@ import { createVideoTask, getVideoTask, renderEditorDemo } from "@/lib/api";
 import type { EditResult, ShowrunnerResult, Shot, VideoResult } from "@/lib/api";
 
 type ShowrunnerStatus = "not-started" | "generating" | "failed" | "ready";
+type TaskCreationStatus = "not created" | "creating" | "created" | "failed";
+
+type TaskCreationState = {
+  status: TaskCreationStatus;
+  error: string;
+};
 
 type ShowrunnerOutputProps = {
   result: ShowrunnerResult | null;
@@ -16,6 +22,8 @@ type ShowrunnerOutputProps = {
 
 export function ShowrunnerOutput({ result, status, error: showrunnerError, onRetry }: ShowrunnerOutputProps) {
   const [tasks, setTasks] = useState<Record<string, VideoResult>>({});
+  const [taskCreation, setTaskCreation] = useState<Record<string, TaskCreationState>>({});
+  const [refreshErrors, setRefreshErrors] = useState<Record<string, string>>({});
   const [busyAction, setBusyAction] = useState("");
   const [error, setError] = useState("");
   const [editResult, setEditResult] = useState<EditResult | null>(null);
@@ -24,16 +32,33 @@ export function ShowrunnerOutput({ result, status, error: showrunnerError, onRet
   const shots = resolveShots(result);
   const warnings = arrayOrEmpty(result?.warnings);
   const demoShots = shots.slice(0, 3);
-  const allCreated = demoShots.length > 0 && demoShots.every((shot) => tasks[shot.id]);
+  const allCreated = demoShots.length > 0 && demoShots.every((shot) => Boolean(tasks[shot.id]?.task_id));
   const allSucceeded = demoShots.length > 0 && demoShots.every((shot) => tasks[shot.id]?.status === "succeeded" && tasks[shot.id]?.video_url);
+  const createdCount = demoShots.filter((shot) => Boolean(tasks[shot.id]?.task_id)).length;
+  const failedShots = demoShots.filter((shot) => taskCreation[shot.id]?.status === "failed" && !tasks[shot.id]?.task_id);
+  const refreshableShots = demoShots.filter((shot) => Boolean(tasks[shot.id]?.task_id));
+  const creationStarted = demoShots.some((shot) => taskCreation[shot.id]?.status && taskCreation[shot.id]?.status !== "not created");
 
   async function handleCreateDemoTasks() {
     if (!window.confirm("This may consume Wan video credits. Create up to 3 video tasks?")) return;
-    setBusyAction("create");
+    await createTasksForShots(demoShots, "create");
+  }
+
+  async function handleRetryFailedTasks() {
+    if (!window.confirm(`Retry ${failedShots.length} failed video task(s)? This may consume Wan video credits.`)) return;
+    await createTasksForShots(failedShots, "retry");
+  }
+
+  async function createTasksForShots(shotsToCreate: Shot[], action: "create" | "retry") {
+    setBusyAction(action);
     setError("");
-    try {
-      for (const shot of demoShots) {
-        if (tasks[shot.id]) continue;
+    for (const shot of shotsToCreate) {
+      if (tasks[shot.id]?.task_id) continue;
+      setTaskCreation((current) => ({
+        ...current,
+        [shot.id]: { status: "creating", error: "" }
+      }));
+      try {
         const taskID = await createVideoTask(videoPromptForShot(shot));
         setTasks((current) => ({
           ...current,
@@ -45,39 +70,47 @@ export function ShowrunnerOutput({ result, status, error: showrunnerError, onRet
             error_message: ""
           }
         }));
+        setTaskCreation((current) => ({
+          ...current,
+          [shot.id]: { status: "created", error: "" }
+        }));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Create video task failed";
+        setTaskCreation((current) => ({
+          ...current,
+          [shot.id]: { status: "failed", error: message }
+        }));
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Create video tasks failed");
-    } finally {
-      setBusyAction("");
     }
+    setBusyAction("");
   }
 
   async function handlePollStatuses() {
-    if (!allCreated) return;
+    if (refreshableShots.length === 0) return;
     setBusyAction("poll");
     setError("");
-    try {
-      let current = { ...tasks };
-      while (demoShots.some((shot) => !isTerminal(current[shot.id]?.status))) {
-        const refreshedEntries = await Promise.all(
-          demoShots.map(async (shot) => {
-            const task = current[shot.id];
-            if (!task || isTerminal(task.status)) return [shot.id, task] as const;
-            return [shot.id, await getVideoTask(task.task_id)] as const;
-          })
-        );
-        current = Object.fromEntries(refreshedEntries) as Record<string, VideoResult>;
-        setTasks(current);
-        if (demoShots.some((shot) => !isTerminal(current[shot.id]?.status))) {
-          await delay(10_000);
+    const nextErrors: Record<string, string> = {};
+    const refreshedEntries = await Promise.all(
+      refreshableShots.map(async (shot) => {
+        const task = tasks[shot.id];
+        if (task.status === "succeeded") return [shot.id, task] as const;
+        try {
+          return [shot.id, await getVideoTask(task.task_id)] as const;
+        } catch (err) {
+          nextErrors[shot.id] = err instanceof Error ? err.message : "Refresh video task status failed";
+          return [shot.id, task] as const;
         }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Refresh video task status failed");
-    } finally {
-      setBusyAction("");
+      })
+    );
+    setTasks((current) => ({
+      ...current,
+      ...Object.fromEntries(refreshedEntries)
+    }));
+    setRefreshErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setError(`${Object.keys(nextErrors).length} video task status refresh failed`);
     }
+    setBusyAction("");
   }
 
   async function handleRenderDemo() {
@@ -136,18 +169,28 @@ export function ShowrunnerOutput({ result, status, error: showrunnerError, onRet
           {demoShots.length ? (
             <>
             <div className="short-demo-actions">
-              <Button type="primary" disabled={allCreated || busyAction !== ""} loading={busyAction === "create"} onClick={handleCreateDemoTasks}>
+              <Button type="primary" disabled={creationStarted || busyAction !== ""} loading={busyAction === "create"} onClick={handleCreateDemoTasks}>
                 Create 3 Video Tasks
               </Button>
-              <Button disabled={!allCreated || busyAction !== ""} loading={busyAction === "poll"} onClick={handlePollStatuses}>
+              <Button disabled={failedShots.length === 0 || busyAction !== ""} loading={busyAction === "retry"} onClick={handleRetryFailedTasks}>
+                Retry Failed Tasks
+              </Button>
+              <Button disabled={refreshableShots.length === 0 || busyAction !== ""} loading={busyAction === "poll"} onClick={handlePollStatuses}>
                 Refresh Status
               </Button>
               <Button disabled={!allSucceeded || busyAction !== ""} loading={busyAction === "render"} onClick={handleRenderDemo}>
                 Render Final Demo
               </Button>
             </div>
+            <Alert
+              type={createdCount === demoShots.length ? "success" : failedShots.length ? "warning" : "info"}
+              showIcon
+              message={`${createdCount}/${demoShots.length} video tasks created`}
+              description={`${refreshableShots.length} task${refreshableShots.length === 1 ? "" : "s"} can be refreshed | ${failedShots.length} failed task${failedShots.length === 1 ? "" : "s"} can be retried`}
+            />
             {demoShots.map((shot) => {
               const task = tasks[shot.id];
+              const creation = taskCreation[shot.id] ?? { status: "not created", error: "" };
               return (
                 <div className="video-task-row" key={shot.id}>
                   <div>
@@ -155,9 +198,12 @@ export function ShowrunnerOutput({ result, status, error: showrunnerError, onRet
                     <small>{summarizePrompt(shot.video_prompt || shot.image_prompt)}</small>
                     <small>Duration: {parseDuration(shot.duration_hint)}s</small>
                     <code>Task: {task?.task_id ?? "not created"}</code>
-                    <code>Video URL: {task?.video_url || "not available"}</code>
+                    <code>Task status: {task?.status ?? "not available"}</code>
+                    <code>Video URL: {safeDisplayURL(task?.video_url)}</code>
+                    {creation.error ? <small>Failed: {creation.error}</small> : null}
+                    {refreshErrors[shot.id] ? <small>Refresh failed: {refreshErrors[shot.id]}</small> : null}
                   </div>
-                  <Tag>{task?.status ?? "not created"}</Tag>
+                  <Tag>{creation.status}</Tag>
                 </div>
               );
             })}
@@ -260,12 +306,14 @@ function summarizePrompt(value: string): string {
   return value.length > 180 ? `${value.slice(0, 180)}...` : value;
 }
 
-function isTerminal(status?: string): boolean {
-  return status === "succeeded" || status === "failed";
-}
-
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+function safeDisplayURL(value?: string): string {
+  if (!value) return "not available";
+  try {
+    const url = new URL(value);
+    return `${url.host}${url.pathname}`;
+  } catch {
+    return "invalid URL";
+  }
 }
 
 function stringListText(values: string[]): string {

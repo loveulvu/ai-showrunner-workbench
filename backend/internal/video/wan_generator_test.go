@@ -3,10 +3,13 @@ package video
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestBuildWanCreateRequest(t *testing.T) {
@@ -109,6 +112,85 @@ func TestWanCreateTaskRequestAndResponse(t *testing.T) {
 	}
 }
 
+func TestWanCreateTaskRetriesTemporaryNetworkErrorsTwice(t *testing.T) {
+	var attempts atomic.Int32
+	client := &http.Client{Transport: videoRoundTripperFunc(func(*http.Request) (*http.Response, error) {
+		if attempts.Add(1) < 3 {
+			return nil, io.ErrUnexpectedEOF
+		}
+		return wanHTTPResponse(http.StatusOK, `{"output":{"task_id":"wan-task-001","task_status":"PENDING"}}`), nil
+	})}
+	generator := NewWanVideoGenerator(
+		ProviderConfig{Provider: "wan", Model: "wan2.6-t2v", BaseURL: "https://example.invalid/api/v1"},
+		NewMemoryVideoTaskStore(),
+		"test-key",
+		client,
+	)
+	generator.retryDelays = []time.Duration{0, 0}
+
+	taskID, err := generator.CreateTask(context.Background(), VideoPrompt{ShotID: "shot_001", Prompt: "test"})
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if taskID != "wan-task-001" || attempts.Load() != 3 {
+		t.Fatalf("taskID/attempts = %q/%d, want wan-task-001/3", taskID, attempts.Load())
+	}
+}
+
+func TestWanCreateTaskDoesNotRetryHTTP4xx(t *testing.T) {
+	var attempts atomic.Int32
+	client := &http.Client{Transport: videoRoundTripperFunc(func(*http.Request) (*http.Response, error) {
+		attempts.Add(1)
+		return wanHTTPResponse(http.StatusUnauthorized, `{"code":"InvalidApiKey","message":"invalid api key"}`), nil
+	})}
+	generator := NewWanVideoGenerator(ProviderConfig{BaseURL: "https://example.invalid"}, NewMemoryVideoTaskStore(), "test-key", client)
+	generator.retryDelays = []time.Duration{0, 0}
+
+	if _, err := generator.CreateTask(context.Background(), VideoPrompt{ShotID: "shot_001", Prompt: "test"}); err == nil {
+		t.Fatal("CreateTask() error = nil, want error")
+	}
+	if attempts.Load() != 1 {
+		t.Fatalf("attempts = %d, want 1", attempts.Load())
+	}
+}
+
+func TestWanCreateTaskDoesNotRetryAfterTaskID(t *testing.T) {
+	var attempts atomic.Int32
+	client := &http.Client{Transport: videoRoundTripperFunc(func(*http.Request) (*http.Response, error) {
+		attempts.Add(1)
+		response := wanHTTPResponse(http.StatusOK, "")
+		response.Body = taskIDThenUnexpectedEOFReader{}
+		return response, nil
+	})}
+	generator := NewWanVideoGenerator(ProviderConfig{BaseURL: "https://example.invalid"}, NewMemoryVideoTaskStore(), "test-key", client)
+	generator.retryDelays = []time.Duration{0, 0}
+
+	taskID, err := generator.CreateTask(context.Background(), VideoPrompt{ShotID: "shot_001", Prompt: "test"})
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if taskID != "wan-task-001" || attempts.Load() != 1 {
+		t.Fatalf("taskID/attempts = %q/%d, want wan-task-001/1", taskID, attempts.Load())
+	}
+}
+
+type taskIDThenUnexpectedEOFReader struct {
+	sent bool
+}
+
+func (reader taskIDThenUnexpectedEOFReader) Read(buffer []byte) (int, error) {
+	if reader.sent {
+		return 0, io.ErrUnexpectedEOF
+	}
+	payload := []byte(`{"output":{"task_id":"wan-task-001","task_status":"PENDING"}}`)
+	copy(buffer, payload)
+	return len(payload), io.ErrUnexpectedEOF
+}
+
+func (taskIDThenUnexpectedEOFReader) Close() error {
+	return nil
+}
+
 func TestWanGetTaskQueryResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/tasks/wan-task-001" {
@@ -134,6 +216,44 @@ func TestWanGetTaskQueryResponse(t *testing.T) {
 		t.Fatalf("GetTask() error = %v", err)
 	}
 	if result.Status != StatusSucceeded || result.VideoURL != "https://example.com/video.mp4" {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestWanGetTaskQueriesRemoteWithoutLocalCache(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"output":{"task_id":"wan-task-remote","task_status":"RUNNING"}}`))
+	}))
+	defer server.Close()
+
+	generator := NewWanVideoGenerator(ProviderConfig{BaseURL: server.URL}, NewMemoryVideoTaskStore(), "test-key", server.Client())
+	result, err := generator.GetTask(context.Background(), "wan-task-remote")
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if result.TaskID != "wan-task-remote" || result.Status != StatusRunning {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestWanGetTaskReturnsSucceededCacheWhenRemoteFails(t *testing.T) {
+	store := NewMemoryVideoTaskStore()
+	_ = store.Save(context.Background(), &VideoTask{
+		TaskID:   "wan-task-cached",
+		ShotID:   "shot-1",
+		Status:   StatusSucceeded,
+		VideoURL: "https://signed.example/video.mp4?secret=value",
+	})
+	client := &http.Client{Transport: videoRoundTripperFunc(func(*http.Request) (*http.Response, error) {
+		return nil, io.ErrUnexpectedEOF
+	})}
+	generator := NewWanVideoGenerator(ProviderConfig{BaseURL: "https://example.invalid"}, store, "test-key", client)
+
+	result, err := generator.GetTask(context.Background(), "wan-task-cached")
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if result.Status != StatusSucceeded || result.VideoURL == "" {
 		t.Fatalf("result = %#v", result)
 	}
 }
@@ -173,5 +293,19 @@ func TestMapWanStatus(t *testing.T) {
 		if input == "UNKNOWN" && message == "" {
 			t.Fatal("UNKNOWN status must include an error message")
 		}
+	}
+}
+
+type videoRoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (fn videoRoundTripperFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
+}
+
+func wanHTTPResponse(status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     make(http.Header),
 	}
 }

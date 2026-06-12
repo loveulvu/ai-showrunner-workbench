@@ -1,9 +1,12 @@
 package video
 
 import (
+	"bytes"
+	"log"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestProviderConfigFromEnvDefaults(t *testing.T) {
@@ -66,12 +69,67 @@ func TestNewGeneratorFromConfigWan(t *testing.T) {
 	if !ok || transport.Proxy == nil {
 		t.Fatalf("Wan transport = %T, want proxy-aware *http.Transport", wanGenerator.httpClient.Transport)
 	}
+	if wanGenerator.httpClient.Timeout != 10*time.Second {
+		t.Fatalf("Wan timeout = %s, want 10s", wanGenerator.httpClient.Timeout)
+	}
 }
 
 func TestNewGeneratorFromConfigWanRequiresConfiguration(t *testing.T) {
 	t.Setenv("VIDEO_API_KEY", "")
+	t.Setenv("AI_API_KEY", "")
 	_, err := NewGeneratorFromConfig(ProviderConfig{Provider: "wan"}, NewMemoryVideoTaskStore())
 	if err == nil || !strings.Contains(err.Error(), "VIDEO_BASE_URL") {
 		t.Fatalf("error = %v, want VIDEO_BASE_URL requirement", err)
+	}
+}
+
+func TestEffectiveAPIKeyFallsBackToAIAPIKey(t *testing.T) {
+	t.Setenv("VIDEO_API_KEY", "")
+	t.Setenv("AI_API_KEY", "fallback-key")
+
+	key, fallbackUsed := EffectiveAPIKey()
+	if key != "fallback-key" || !fallbackUsed {
+		t.Fatalf("EffectiveAPIKey() = %q/%t, want fallback-key/true", key, fallbackUsed)
+	}
+
+	config, err := ProviderConfigFromEnv()
+	if err != nil {
+		t.Fatalf("ProviderConfigFromEnv() error = %v", err)
+	}
+	if config.APIKeySet || !config.AIAPIKeyFallbackUsed {
+		t.Fatalf("config key status = %#v", config)
+	}
+}
+
+func TestProviderConfigFromEnvUsesVideoTimeoutSeconds(t *testing.T) {
+	t.Setenv("VIDEO_TIMEOUT_SECONDS", "725")
+
+	config, err := ProviderConfigFromEnv()
+	if err != nil {
+		t.Fatalf("ProviderConfigFromEnv() error = %v", err)
+	}
+	if config.TimeoutSeconds != 725 {
+		t.Fatalf("TimeoutSeconds = %d, want 725", config.TimeoutSeconds)
+	}
+}
+
+func TestLogProviderConfigIncludesTimeoutWithoutSecrets(t *testing.T) {
+	var output bytes.Buffer
+	LogProviderConfig(log.New(&output, "", 0), ProviderConfig{
+		Provider:       "wan",
+		Model:          "wan2.6-t2v",
+		BaseURL:        "https://secret.example/api",
+		APIKeySet:      true,
+		TimeoutSeconds: 600,
+	})
+
+	logged := output.String()
+	for _, expected := range []string{"VIDEO_PROVIDER=wan", "VIDEO_MODEL=wan2.6-t2v", "VIDEO_BASE_URL set: true", "VIDEO_API_KEY set: true", "VIDEO_TIMEOUT_SECONDS=600"} {
+		if !strings.Contains(logged, expected) {
+			t.Fatalf("log missing %q: %s", expected, logged)
+		}
+	}
+	if strings.Contains(logged, "secret.example") {
+		t.Fatalf("log contains sensitive URL: %s", logged)
 	}
 }

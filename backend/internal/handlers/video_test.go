@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+type failingVideoGenerator struct {
+	err error
+}
+
+func (g failingVideoGenerator) CreateTask(context.Context, video.VideoPrompt) (string, error) {
+	return "", g.err
+}
+
+func (g failingVideoGenerator) GetTask(context.Context, string) (*video.VideoResult, error) {
+	return nil, g.err
+}
 
 func TestCreateAndGetVideoTaskEndpoints(t *testing.T) {
 	original := videoGenerator
@@ -99,5 +112,62 @@ func TestConfigureVideoGeneratorFromEnvMockAndWan(t *testing.T) {
 	t.Setenv("VIDEO_API_KEY", "test-key")
 	if _, err := ConfigureVideoGeneratorFromEnv(); err != nil {
 		t.Fatalf("ConfigureVideoGeneratorFromEnv() wan error = %v", err)
+	}
+}
+
+func TestCreateVideoTaskReturnsBadGatewayForWanNetworkError(t *testing.T) {
+	original := videoGenerator
+	videoGenerator = failingVideoGenerator{err: &video.Error{
+		Kind:    video.ErrorKindUpstream,
+		Message: "Could not reach Wan video service",
+	}}
+	t.Cleanup(func() { videoGenerator = original })
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/video/tasks", bytes.NewBufferString(`{"shot_id":"shot_001","prompt":"test"}`))
+	context.Request.Header.Set("Content-Type", "application/json")
+
+	CreateVideoTask(context)
+
+	if recorder.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"message":"Could not reach Wan video service"`)) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestCreateVideoTaskReturnsBadRequestForInvalidPrompt(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/video/tasks", bytes.NewBufferString(`{"shot_id":"","prompt":""}`))
+	context.Request.Header.Set("Content-Type", "application/json")
+
+	CreateVideoTask(context)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestGetVideoTaskReturnsBadGatewayForWanNetworkError(t *testing.T) {
+	original := videoGenerator
+	videoGenerator = failingVideoGenerator{err: &video.Error{
+		Kind:    video.ErrorKindUpstream,
+		Message: "Could not reach Wan video service",
+	}}
+	t.Cleanup(func() { videoGenerator = original })
+
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodGet, "/api/video/tasks/task-1", nil)
+	context.AddParam("task_id", "task-1")
+
+	GetVideoTask(context)
+
+	if recorder.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
 }

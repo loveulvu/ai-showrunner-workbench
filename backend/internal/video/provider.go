@@ -18,12 +18,13 @@ const (
 )
 
 type ProviderConfig struct {
-	Provider            string
-	Model               string
-	BaseURL             string
-	APIKeySet           bool
-	TimeoutSeconds      int
-	PollIntervalSeconds int
+	Provider             string
+	Model                string
+	BaseURL              string
+	APIKeySet            bool
+	AIAPIKeyFallbackUsed bool
+	TimeoutSeconds       int
+	PollIntervalSeconds  int
 }
 
 func ProviderConfigFromEnv() (ProviderConfig, error) {
@@ -46,12 +47,13 @@ func ProviderConfigFromEnv() (ProviderConfig, error) {
 	}
 
 	return ProviderConfig{
-		Provider:            provider,
-		Model:               model,
-		BaseURL:             strings.TrimSpace(os.Getenv("VIDEO_BASE_URL")),
-		APIKeySet:           strings.TrimSpace(os.Getenv("VIDEO_API_KEY")) != "",
-		TimeoutSeconds:      timeoutSeconds,
-		PollIntervalSeconds: pollIntervalSeconds,
+		Provider:             provider,
+		Model:                model,
+		BaseURL:              strings.TrimSpace(os.Getenv("VIDEO_BASE_URL")),
+		APIKeySet:            strings.TrimSpace(os.Getenv("VIDEO_API_KEY")) != "",
+		AIAPIKeyFallbackUsed: strings.TrimSpace(os.Getenv("VIDEO_API_KEY")) == "" && strings.TrimSpace(os.Getenv("AI_API_KEY")) != "",
+		TimeoutSeconds:       timeoutSeconds,
+		PollIntervalSeconds:  pollIntervalSeconds,
 	}, nil
 }
 
@@ -64,23 +66,14 @@ func NewGeneratorFromConfig(config ProviderConfig, store VideoTaskStore) (VideoG
 	case "mock":
 		return NewMockVideoGeneratorWithStore(config, store), nil
 	case "wan":
-		apiKey := strings.TrimSpace(os.Getenv("VIDEO_API_KEY"))
+		apiKey, _ := EffectiveAPIKey()
 		if strings.TrimSpace(config.BaseURL) == "" {
 			return nil, fmt.Errorf("VIDEO_PROVIDER=wan requires VIDEO_BASE_URL")
 		}
 		if apiKey == "" {
-			return nil, fmt.Errorf("VIDEO_PROVIDER=wan requires VIDEO_API_KEY")
+			return nil, fmt.Errorf("VIDEO_PROVIDER=wan requires VIDEO_API_KEY or AI_API_KEY")
 		}
-		timeoutSeconds := config.TimeoutSeconds
-		if timeoutSeconds <= 0 {
-			timeoutSeconds = defaultVideoTimeoutSeconds
-		}
-		transport := http.DefaultTransport.(*http.Transport).Clone()
-		transport.Proxy = http.ProxyFromEnvironment
-		client := &http.Client{
-			Transport: transport,
-			Timeout:   time.Duration(timeoutSeconds) * time.Second,
-		}
+		client := NewHTTPClient(config)
 		return NewWanVideoGenerator(config, store, apiKey, client), nil
 	default:
 		return nil, fmt.Errorf("unknown VIDEO_PROVIDER %q", config.Provider)
@@ -100,6 +93,29 @@ func LogProviderConfig(logger *log.Logger, config ProviderConfig) {
 	logger.Printf("VIDEO_MODEL=%s", config.Model)
 	logger.Printf("VIDEO_BASE_URL set: %t", strings.TrimSpace(config.BaseURL) != "")
 	logger.Printf("VIDEO_API_KEY set: %t", config.APIKeySet)
+	logger.Printf("AI_API_KEY fallback used: %t", config.AIAPIKeyFallbackUsed)
+	logger.Printf("VIDEO_TIMEOUT_SECONDS=%d", config.TimeoutSeconds)
+}
+
+func EffectiveAPIKey() (string, bool) {
+	if value := strings.TrimSpace(os.Getenv("VIDEO_API_KEY")); value != "" {
+		return value, false
+	}
+	value := strings.TrimSpace(os.Getenv("AI_API_KEY"))
+	return value, value != ""
+}
+
+func NewHTTPClient(config ProviderConfig) *http.Client {
+	timeoutSeconds := config.TimeoutSeconds
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = defaultVideoTimeoutSeconds
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = http.ProxyFromEnvironment
+	return &http.Client{
+		Transport: transport,
+		Timeout:   time.Duration(timeoutSeconds) * time.Second,
+	}
 }
 
 func positiveIntFromEnv(name string, fallback int) (int, error) {
