@@ -35,6 +35,18 @@ func TestNewClientFromEnvQwenDefaults(t *testing.T) {
 	}
 }
 
+func TestAITimeoutSecondsFromEnvUsesDefault(t *testing.T) {
+	t.Setenv("AI_TIMEOUT_SECONDS", "")
+
+	got, err := aiTimeoutSecondsFromEnv()
+	if err != nil {
+		t.Fatalf("aiTimeoutSecondsFromEnv() error = %v", err)
+	}
+	if got != defaultAITimeoutSeconds || got < 120 {
+		t.Fatalf("aiTimeoutSecondsFromEnv() = %d, want default >= 120", got)
+	}
+}
+
 func TestNewClientFromEnvQwenRequiresAPIKey(t *testing.T) {
 	t.Setenv("AI_PROVIDER", ProviderQwen)
 	t.Setenv("AI_API_KEY", " ")

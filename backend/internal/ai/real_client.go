@@ -22,11 +22,12 @@ import (
 )
 
 type RealClient struct {
-	apiKey     string
-	model      string
-	endpoint   string
-	httpClient *http.Client
-	timeout    time.Duration
+	apiKey      string
+	model       string
+	endpoint    string
+	httpClient  *http.Client
+	timeout     time.Duration
+	retryDelays []time.Duration
 }
 
 func NewRealClient(cfg Config) *RealClient {
@@ -46,7 +47,8 @@ func NewRealClient(cfg Config) *RealClient {
 			Timeout:   timeout,
 			Transport: transport,
 		},
-		timeout: timeout,
+		timeout:     timeout,
+		retryDelays: []time.Duration{time.Second, 2 * time.Second},
 	}
 }
 
@@ -184,22 +186,39 @@ func (c *RealClient) callChatContent(ctx context.Context, step string, prompt st
 		return c.failLLMCall(step, "marshal request", start, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(payload))
-	if err != nil {
-		return c.failLLMCall(step, "create request", start, err)
-	}
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-	req.Header.Set("Content-Type", "application/json")
+	var resp *http.Response
+	var body []byte
+	for attempt := 0; ; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(payload))
+		if err != nil {
+			return c.failLLMCall(step, "create request", start, err)
+		}
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+		req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return c.failLLMCall(step, "call chat completions", start, err)
-	}
-	defer resp.Body.Close()
+		resp, err = c.httpClient.Do(req)
+		if err != nil {
+			if c.shouldRetryNetworkError(ctx, err, attempt) {
+				if waitErr := c.waitBeforeRetry(ctx, step, attempt, err); waitErr != nil {
+					return c.failLLMCall(step, "call chat completions", start, waitErr)
+				}
+				continue
+			}
+			return c.failLLMCall(step, "call chat completions", start, err)
+		}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1_000_000))
-	if err != nil {
-		return c.failLLMCall(step, "read response", start, err)
+		body, err = io.ReadAll(io.LimitReader(resp.Body, 1_000_000))
+		_ = resp.Body.Close()
+		if err != nil {
+			if !isClientErrorStatus(resp.StatusCode) && c.shouldRetryNetworkError(ctx, err, attempt) {
+				if waitErr := c.waitBeforeRetry(ctx, step, attempt, err); waitErr != nil {
+					return c.failLLMCall(step, "read response", start, waitErr)
+				}
+				continue
+			}
+			return c.failLLMCall(step, "read response", start, err)
+		}
+		break
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -232,6 +251,24 @@ func (c *RealClient) callChatContent(ctx context.Context, step string, prompt st
 	return content, nil
 }
 
+func (c *RealClient) shouldRetryNetworkError(ctx context.Context, err error, attempt int) bool {
+	return attempt < len(c.retryDelays) && ctx.Err() == nil && isTemporaryNetworkError(err)
+}
+
+func (c *RealClient) waitBeforeRetry(ctx context.Context, step string, attempt int, err error) error {
+	delay := c.retryDelays[attempt]
+	log.Printf("LLM %s temporary network error; retrying attempt %d/%d in %s: %s", step, attempt+1, len(c.retryDelays), delay, RedactedDiagnostic(err))
+
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
 func (c *RealClient) failLLMCall(step string, phase string, start time.Time, err error) (string, error) {
 	elapsed := time.Since(start)
 	log.Printf("LLM %s failed in %.1fs: %s", step, elapsed.Seconds(), phase)
@@ -250,6 +287,32 @@ func isTimeoutError(err error) bool {
 
 	var netErr net.Error
 	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
+func isTemporaryNetworkError(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) {
+		return false
+	}
+	if isTimeoutError(err) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Temporary() {
+		return true
+	}
+
+	message := strings.ToLower(err.Error())
+	for _, fragment := range []string{"connection reset", "forcibly closed", "unexpected eof", "temporary network error"} {
+		if strings.Contains(message, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
+func isClientErrorStatus(statusCode int) bool {
+	return statusCode >= http.StatusBadRequest && statusCode < http.StatusInternalServerError
 }
 
 func chatCompletionsEndpoint(baseURL string) string {

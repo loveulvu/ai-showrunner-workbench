@@ -3,9 +3,11 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -147,6 +149,7 @@ func TestRealClientCallChatContentTimeout(t *testing.T) {
 	})
 	client.timeout = 20 * time.Millisecond
 	client.httpClient.Timeout = client.timeout
+	client.retryDelays = nil
 
 	_, err := client.callChatContent(context.Background(), "test request", "hello")
 	if err == nil {
@@ -155,4 +158,107 @@ func TestRealClientCallChatContentTimeout(t *testing.T) {
 	if !strings.Contains(err.Error(), "timeout after") {
 		t.Fatalf("callChatContent() error = %q, want timeout message", err)
 	}
+}
+
+func TestRealClientRetriesTemporaryNetworkErrorsTwice(t *testing.T) {
+	var attempts atomic.Int32
+	client := NewRealClient(Config{
+		APIKey:         "test-key",
+		BaseURL:        defaultQwenBaseURL,
+		Model:          defaultQwenModel,
+		TimeoutSeconds: 2,
+	})
+	client.retryDelays = []time.Duration{0, 0}
+	client.httpClient.Transport = roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		attempt := attempts.Add(1)
+		if attempt < 3 {
+			return nil, io.ErrUnexpectedEOF
+		}
+		return chatResponse(http.StatusOK, `{"choices":[{"message":{"role":"assistant","content":"generated text"}}]}`), nil
+	})
+
+	content, err := client.callChatContent(context.Background(), "test request", "hello")
+	if err != nil {
+		t.Fatalf("callChatContent() error = %v", err)
+	}
+	if content != "generated text" {
+		t.Fatalf("content = %q, want generated text", content)
+	}
+	if got := attempts.Load(); got != 3 {
+		t.Fatalf("attempts = %d, want 3", got)
+	}
+}
+
+func TestRealClientDoesNotRetryHTTPConfigurationErrors(t *testing.T) {
+	var attempts atomic.Int32
+	client := NewRealClient(Config{
+		APIKey:         "test-key",
+		BaseURL:        defaultQwenBaseURL,
+		Model:          defaultQwenModel,
+		TimeoutSeconds: 2,
+	})
+	client.retryDelays = []time.Duration{0, 0}
+	client.httpClient.Transport = roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		attempts.Add(1)
+		return chatResponse(http.StatusUnauthorized, `{"error":{"message":"invalid key"}}`), nil
+	})
+
+	_, err := client.callChatContent(context.Background(), "test request", "hello")
+	if err == nil || !strings.Contains(err.Error(), "status 401") {
+		t.Fatalf("callChatContent() error = %v, want status 401", err)
+	}
+	if got := attempts.Load(); got != 1 {
+		t.Fatalf("attempts = %d, want 1", got)
+	}
+}
+
+func TestRealClientDoesNotRetryEOFReadingHTTPConfigurationError(t *testing.T) {
+	var attempts atomic.Int32
+	client := NewRealClient(Config{
+		APIKey:         "test-key",
+		BaseURL:        defaultQwenBaseURL,
+		Model:          defaultQwenModel,
+		TimeoutSeconds: 2,
+	})
+	client.retryDelays = []time.Duration{0, 0}
+	client.httpClient.Transport = roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		attempts.Add(1)
+		response := chatResponse(http.StatusForbidden, "")
+		response.Body = failingReadCloser{Reader: strings.NewReader("")}
+		return response, nil
+	})
+
+	_, err := client.callChatContent(context.Background(), "test request", "hello")
+	if err == nil || !strings.Contains(err.Error(), "read response failed") {
+		t.Fatalf("callChatContent() error = %v, want read response failure", err)
+	}
+	if got := attempts.Load(); got != 1 {
+		t.Fatalf("attempts = %d, want 1", got)
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
+func chatResponse(status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     make(http.Header),
+	}
+}
+
+type failingReadCloser struct {
+	io.Reader
+}
+
+func (failingReadCloser) Read([]byte) (int, error) {
+	return 0, io.ErrUnexpectedEOF
+}
+
+func (failingReadCloser) Close() error {
+	return nil
 }

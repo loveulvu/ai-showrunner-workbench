@@ -81,6 +81,21 @@ export default function Home() {
     }
   }
 
+  async function handleRetryShowrunner() {
+    if (!result || showrunnerStatus === "generating") return;
+
+    setShowrunnerStatus("generating");
+    setShowrunnerError("");
+    setShowrunnerResult(null);
+    try {
+      setShowrunnerResult(await generateShowrunner(result));
+      setShowrunnerStatus("ready");
+    } catch (showrunnerErr) {
+      setShowrunnerError(showrunnerErr instanceof Error ? showrunnerErr.message : "Showrunner generation failed");
+      setShowrunnerStatus("failed");
+    }
+  }
+
   return (
     <ConfigProvider
       theme={{
@@ -150,7 +165,7 @@ export default function Home() {
         </div>
 
         {result && !loading ? <ResultSections result={result} detailsOnly /> : null}
-        <ShowrunnerOutput result={showrunnerResult} status={showrunnerStatus} error={showrunnerError} />
+        <ShowrunnerOutput result={showrunnerResult} status={showrunnerStatus} error={showrunnerError} onRetry={handleRetryShowrunner} />
       </main>
     </ConfigProvider>
   );

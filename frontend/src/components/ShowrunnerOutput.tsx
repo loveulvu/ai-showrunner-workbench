@@ -11,9 +11,10 @@ type ShowrunnerOutputProps = {
   result: ShowrunnerResult | null;
   status: ShowrunnerStatus;
   error: string;
+  onRetry: () => void;
 };
 
-export function ShowrunnerOutput({ result, status, error: showrunnerError }: ShowrunnerOutputProps) {
+export function ShowrunnerOutput({ result, status, error: showrunnerError, onRetry }: ShowrunnerOutputProps) {
   const [tasks, setTasks] = useState<Record<string, VideoResult>>({});
   const [busyAction, setBusyAction] = useState("");
   const [error, setError] = useState("");
@@ -112,7 +113,7 @@ export function ShowrunnerOutput({ result, status, error: showrunnerError }: Sho
           <h2>Showrunner Output</h2>
           <p>Characters, scenes, chapter breakdowns, shots, and generation prompts.</p>
         </div>
-        <ShowrunnerStatusAlert status={status} error={showrunnerError} />
+        <ShowrunnerStatusAlert status={status} error={showrunnerError} onRetry={onRetry} />
         <div className="status-tags showrunner-tags">
           <Tag>{characters.length} Characters</Tag>
           <Tag>{scenes.length} Scenes</Tag>
@@ -180,12 +181,20 @@ export function ShowrunnerOutput({ result, status, error: showrunnerError }: Sho
   );
 }
 
-function ShowrunnerStatusAlert({ status, error }: { status: ShowrunnerStatus; error: string }) {
+function ShowrunnerStatusAlert({ status, error, onRetry }: { status: ShowrunnerStatus; error: string; onRetry: () => void }) {
   if (status === "generating") {
     return <Alert type="info" showIcon message="Generating showrunner assets..." />;
   }
   if (status === "failed") {
-    return <Alert className="error-card showrunner-error" type="error" showIcon message={`Showrunner failed: ${error || "Unknown error"}`} />;
+    return (
+      <Alert
+        className="error-card showrunner-error"
+        type="error"
+        showIcon
+        message={`Showrunner failed: ${error || "Unknown error"}`}
+        action={<Button onClick={onRetry}>Retry Showrunner</Button>}
+      />
+    );
   }
   if (status === "ready") {
     return <Alert type="success" showIcon message="Showrunner ready" />;
